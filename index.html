@@ -2526,8 +2526,15 @@ Render.all = function() {
 //   projectId: "your-app",
 //   ...
 // };
-const FIREBASE_CONFIG = null;
-const FIREBASE_ENABLED = false; // Set to true after pasting config above
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyC11LqnEc8aq79wpHflBSDSob2Z92Wt7yQ",
+  authDomain: "timetracker-247af.firebaseapp.com",
+  projectId: "timetracker-247af",
+  storageBucket: "timetracker-247af.firebasestorage.app",
+  messagingSenderId: "449663540008",
+  appId: "1:449663540008:web:d0ffc3897fb0630bb04e1d"
+};
+const FIREBASE_ENABLED = true;
 
 const Firebase = (() => {
   let _auth = null, _db = null, _user = null;
