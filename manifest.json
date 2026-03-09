@@ -1,0 +1,24 @@
+{
+  "name": "TimeTracker",
+  "short_name": "TimeTracker",
+  "description": "Start/Stop time tracker with weekly summaries and CSV import/export",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='24' fill='%230a0a0a'/><circle cx='96' cy='100' r='56' fill='none' stroke='%2300ff88' stroke-width='8'/><line x1='96' y1='100' x2='96' y2='60' stroke='%2300ff88' stroke-width='6' stroke-linecap='round'/><line x1='96' y1='100' x2='120' y2='118' stroke='%2300ff88' stroke-width='5' stroke-linecap='round'/><circle cx='96' cy='100' r='5' fill='%2300ff88'/><line x1='96' y1='44' x2='96' y2='36' stroke='%2300ff88' stroke-width='5' stroke-linecap='round'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='64' fill='%230a0a0a'/><circle cx='256' cy='270' r='148' fill='none' stroke='%2300ff88' stroke-width='20'/><line x1='256' y1='270' x2='256' y2='160' stroke='%2300ff88' stroke-width='16' stroke-linecap='round'/><line x1='256' y1='270' x2='318' y2='318' stroke='%2300ff88' stroke-width='14' stroke-linecap='round'/><circle cx='256' cy='270' r='14' fill='%2300ff88'/><line x1='256' y1='118' x2='256' y2='96' stroke='%2300ff88' stroke-width='14' stroke-linecap='round'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "screenshots": []
+}

@@ -1,0 +1,5 @@
+WeekStart,Date,StartISO,EndISO,DurationMins,Project,Notes
+2026-03-09,2026-03-09,2026-03-09T09:00:00.000Z,2026-03-09T12:00:00.000Z,180,Project A,Focus work — morning deep dive
+2026-03-09,2026-03-10,2026-03-10T10:00:00.000Z,2026-03-10T11:30:00.000Z,90,Project B,Team meeting + follow-ups
+2026-03-09,2026-03-11,2026-03-11T14:00:00.000Z,2026-03-11T16:45:00.000Z,165,Project A,Code review and documentation
+2026-03-16,2026-03-16,2026-03-16T08:30:00.000Z,2026-03-16T17:00:00.000Z,510,Project C,"Full day sprint, crossed 8h"

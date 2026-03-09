@@ -1,0 +1,2720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="TimeTracker — Start/Stop time tracking with weekly summaries">
+<meta name="theme-color" content="#0a0a0a">
+<title>TimeTracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════════════════════════
+   CSS VARIABLES & RESET
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:          #0a0a0a;
+  --surface:     #111111;
+  --surface2:    #191919;
+  --border:      #2a2a2a;
+  --border2:     #333333;
+  --text:        #e8e8e8;
+  --text-dim:    #666666;
+  --text-muted:  #3a3a3a;
+  --accent:      #00ff88;
+  --accent-dim:  #00cc6a;
+  --danger:      #ff3b3b;
+  --danger-dim:  #cc2e2e;
+  --warn:        #ffaa00;
+
+  --green-bg:    #0a1f13;
+  --green-text:  #00cc6a;
+  --yellow-bg:   #1f1600;
+  --yellow-text: #ffaa00;
+  --red-bg:      #1f0505;
+  --red-text:    #ff5555;
+
+  --radius:      4px;
+  --mono:        'JetBrains Mono', 'Courier New', monospace;
+  --display:     'Syne', sans-serif;
+  --transition:  0.15s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  min-height: 100vh;
+  /* Subtle grid texture */
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════════════ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 52px;
+}
+
+.logo {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.kbd {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.65rem;
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .main {
+    grid-template-columns: 1fr 380px;
+    grid-template-areas:
+      "tracker    tracker"
+      "sessions   summary"
+      "sessions   actions";
+    align-items: start;
+  }
+  .tracker-panel  { grid-area: tracker; }
+  .sessions-panel { grid-area: sessions; }
+  .summary-panel  { grid-area: summary; }
+  .actions-panel  { grid-area: actions; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PANELS / CARDS
+═══════════════════════════════════════════════════════ */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.panel-title {
+  font-family: var(--display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panel-badge {
+  margin-left: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.panel-body {
+  padding: 1rem;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TRACKER PANEL
+═══════════════════════════════════════════════════════ */
+.tracker-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .tracker-inputs {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 0.75rem;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.form-input {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition);
+  width: 100%;
+}
+
+.form-input::placeholder { color: var(--text-muted); }
+.form-input:focus { border-color: var(--accent); }
+
+.tracker-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background var(--transition);
+}
+
+.btn:hover::after { background: rgba(255,255,255,0.05); }
+.btn:active { transform: translateY(1px); }
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+.btn-primary:disabled { background: #1a3329; border-color: #1a3329; color: #2a6647; cursor: not-allowed; }
+.btn-primary:disabled::after { display: none; }
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+.btn-danger:hover { background: var(--danger-dim); border-color: var(--danger-dim); }
+.btn-danger:disabled { background: #2a1010; border-color: #2a1010; color: #552222; cursor: not-allowed; }
+.btn-danger:disabled::after { display: none; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border2);
+}
+
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+
+.btn-sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+
+.status-dot.running {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+.status-text {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.status-text strong { color: var(--text); }
+
+.live-timer {
+  margin-left: auto;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: var(--display);
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  min-width: 80px;
+  text-align: right;
+  display: none;
+}
+
+.live-timer.visible { display: block; }
+
+/* ═══════════════════════════════════════════════════════
+   SESSIONS TABLE
+═══════════════════════════════════════════════════════ */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+thead th {
+  background: var(--surface2);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+tbody tr:hover { background: var(--surface2); }
+tbody tr:last-child { border-bottom: none; }
+
+td {
+  padding: 0.55rem 0.75rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.td-notes {
+  white-space: normal;
+  max-width: 180px;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.td-project {
+  color: var(--accent-dim);
+  font-weight: 500;
+}
+
+.td-duration {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.td-actions { display: flex; gap: 0.35rem; }
+
+.empty-state {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.empty-state .empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.3;
+}
+
+.clock-warn {
+  color: var(--warn);
+  font-size: 0.65rem;
+  vertical-align: middle;
+  margin-left: 2px;
+  cursor: help;
+}
+
+.running-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.running-indicator::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   WEEKLY SUMMARY
+═══════════════════════════════════════════════════════ */
+.summary-row-green {
+  background: var(--green-bg) !important;
+  color: var(--green-text);
+}
+
+.summary-row-yellow {
+  background: var(--yellow-bg) !important;
+  color: var(--yellow-text);
+}
+
+.summary-row-red {
+  background: var(--red-bg) !important;
+  color: var(--red-text);
+}
+
+.summary-row-green:hover,
+.summary-row-yellow:hover,
+.summary-row-red:hover {
+  filter: brightness(1.1);
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.status-pill.green  { background: rgba(0,204,106,0.15); color: var(--green-text); border: 1px solid rgba(0,204,106,0.3); }
+.status-pill.yellow { background: rgba(255,170,0,0.15);  color: var(--yellow-text); border: 1px solid rgba(255,170,0,0.3); }
+.status-pill.red    { background: rgba(255,85,85,0.15);  color: var(--red-text); border: 1px solid rgba(255,85,85,0.3); }
+
+/* ═══════════════════════════════════════════════════════
+   ACTIONS PANEL
+═══════════════════════════════════════════════════════ */
+.actions-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.actions-panel .btn { justify-content: center; width: 100%; }
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.25rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════ */
+#toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 9999;
+}
+
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.65rem 1rem;
+  font-size: 0.78rem;
+  max-width: 320px;
+  animation: slideIn 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.toast.error { border-left-color: var(--danger); }
+.toast.warn  { border-left-color: var(--warn); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  animation: scaleIn 0.15s ease;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.modal-title {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.modal-body { display: flex; flex-direction: column; gap: 0.75rem; }
+.modal-footer { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+
+/* ═══════════════════════════════════════════════════════
+   MISC UTILITIES
+═══════════════════════════════════════════════════════ */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+.text-dim { color: var(--text-dim); }
+.text-accent { color: var(--accent); }
+
+#import-file-input { display: none; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Storage warning banner */
+#storage-warning {
+  background: var(--red-bg);
+  border-bottom: 1px solid var(--danger);
+  padding: 0.5rem 1.5rem;
+  font-size: 0.75rem;
+  color: var(--red-text);
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   NEW PANELS — Analytics, Goals, Streaks, Firebase
+   Added additively below existing layout
+═══════════════════════════════════════════════════════ */
+
+/* Full-width lower section */
+.main-lower {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.5rem 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .main-lower {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .insights-panel { grid-column: 1 / -1; }
+}
+
+/* Collapsible panels */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-header:hover { background: #1f1f1f; }
+
+.collapse-arrow {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  transition: transform 0.2s ease;
+}
+
+.collapsed .collapse-arrow { transform: rotate(-90deg); }
+.collapsed .collapsible-body { display: none; }
+
+/* Stat grid inside panels */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.75rem;
+}
+
+.stat-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.2rem;
+  font-family: var(--display);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.stat-value.accent { color: var(--accent); }
+.stat-value.warn   { color: var(--warn); }
+.stat-value.danger { color: var(--danger); }
+
+/* Insight cards */
+.insights-list {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.insight-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 0.65rem 0.85rem;
+}
+
+.insight-card.info    { border-left-color: #4488ff; }
+.insight-card.notice  { border-left-color: var(--accent); }
+.insight-card.warning { border-left-color: var(--warn); }
+.insight-card.success { border-left-color: var(--accent-dim); }
+
+.insight-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.insight-msg {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.insight-why {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+  display: none;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+
+.insight-why.visible { display: block; }
+
+.insight-why-toggle {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 0.35rem;
+  font-family: var(--mono);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.insight-why-toggle:hover { color: var(--text); }
+
+.early-stage-notice {
+  margin: 0.5rem 1rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface2);
+  border: 1px dashed var(--border2);
+  border-radius: var(--radius);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+/* Progress bars */
+.progress-wrap {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.progress-item {}
+.progress-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+
+.progress-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.progress-value {
+  font-size: 0.7rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.progress-bar-track {
+  height: 5px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.progress-bar-fill.warn   { background: var(--warn); }
+.progress-bar-fill.danger { background: var(--danger); }
+.progress-bar-fill.over   { background: var(--accent); }
+
+/* Goals inputs */
+.goals-inputs {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.goals-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.goals-row label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.goals-row input {
+  width: 80px;
+  text-align: right;
+}
+
+.goals-row .goals-unit {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  width: 30px;
+}
+
+/* Streak card */
+.streak-display {
+  padding: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.streak-card {
+  flex: 1;
+  min-width: 80px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.streak-number {
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.streak-number.cold { color: var(--text-dim); }
+.streak-label {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.25rem;
+}
+
+/* Deep work score pill */
+.dw-score {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dw-score.dw-red    { background: var(--red-bg);    color: var(--red-text);    border: 1px solid rgba(255,85,85,0.3); }
+.dw-score.dw-yellow { background: var(--yellow-bg); color: var(--yellow-text); border: 1px solid rgba(255,170,0,0.3); }
+.dw-score.dw-green  { background: var(--green-bg);  color: var(--green-text);  border: 1px solid rgba(0,204,106,0.3); }
+
+/* Firebase panel */
+.firebase-config {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.firebase-status {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding: 0.5rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.firebase-status.connected { color: var(--green-text); border-color: rgba(0,204,106,0.3); }
+
+.code-snippet {
+  background: #0d0d0d;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.65rem;
+  color: #aaa;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+/* Responsive override for lower panels */
+@media (min-width: 900px) {
+  .streak-goals-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Storage unavailable banner -->
+<div id="storage-warning" role="alert" aria-live="polite">
+  ⚠ localStorage unavailable (private/incognito mode). Sessions are in-memory only and won't persist across reloads. Export CSV to save your data.
+</div>
+
+<!-- ═══════════ HEADER ═══════════ -->
+<header class="app-header" role="banner">
+  <div class="logo">Time<span>Tracker</span></div>
+  <div class="header-right">
+    <span><kbd class="kbd">S</kbd> Start</span>
+    <span><kbd class="kbd">E</kbd> End</span>
+  </div>
+</header>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main class="main" role="main">
+
+  <!-- TRACKER PANEL -->
+  <section class="panel tracker-panel" aria-labelledby="tracker-heading">
+    <div class="panel-header">
+      <span class="panel-title" id="tracker-heading">Session Tracker</span>
+    </div>
+    <div class="panel-body">
+      <div class="tracker-inputs">
+        <div class="form-group">
+          <label class="form-label" for="input-project">Project / Tag</label>
+          <input class="form-input" id="input-project" type="text" placeholder="e.g. Project A" autocomplete="off" maxlength="80">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="input-notes">Notes</label>
+          <input class="form-input" id="input-notes" type="text" placeholder="What are you working on?" autocomplete="off" maxlength="200">
+        </div>
+      </div>
+
+      <div class="tracker-controls">
+        <button class="btn btn-primary" id="btn-start" aria-label="Start timer (keyboard shortcut: S)">
+          ▶ Start
+        </button>
+        <button class="btn btn-danger" id="btn-stop" disabled aria-label="Stop timer (keyboard shortcut: E)">
+          ■ Stop
+        </button>
+      </div>
+
+      <div class="status-bar" role="status" aria-live="polite" aria-label="Timer status">
+        <div class="status-dot" id="status-dot"></div>
+        <span class="status-text" id="status-text">Not running</span>
+        <div class="live-timer" id="live-timer" aria-label="Elapsed time">0m</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SESSIONS PANEL -->
+  <section class="panel sessions-panel" aria-labelledby="sessions-heading">
+    <div class="panel-header">
+      <span class="panel-title" id="sessions-heading">Sessions</span>
+      <span class="panel-badge" id="session-count">0</span>
+    </div>
+    <div class="table-wrap">
+      <table aria-label="Recorded sessions">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Start</th>
+            <th scope="col">End</th>
+            <th scope="col">Dur.</th>
+            <th scope="col">Project</th>
+            <th scope="col">Notes</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="sessions-tbody">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+      <div class="empty-state" id="sessions-empty" aria-hidden="false">
+        <div class="empty-icon">⏱</div>
+        <div>No sessions yet — hit Start to begin tracking</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WEEKLY SUMMARY PANEL -->
+  <section class="panel summary-panel" aria-labelledby="summary-heading">
+    <div class="panel-header">
+      <span class="panel-title" id="summary-heading">Weekly Summary</span>
+    </div>
+    <div class="table-wrap">
+      <table aria-label="Weekly summary">
+        <thead>
+          <tr>
+            <th scope="col">Week of</th>
+            <th scope="col">Mins</th>
+            <th scope="col">Hours</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="summary-tbody">
+          <!-- populated by JS -->
+        </tbody>
+      </table>
+      <div class="empty-state" id="summary-empty">
+        <div>No data yet</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACTIONS PANEL -->
+  <section class="panel actions-panel" aria-labelledby="actions-heading">
+    <div class="panel-header">
+      <span class="panel-title" id="actions-heading">Data</span>
+    </div>
+    <div class="panel-body">
+      <button class="btn btn-ghost" id="btn-export" aria-label="Export all sessions as CSV">
+        ↓ Export CSV
+      </button>
+      <button class="btn btn-ghost" id="btn-import" aria-label="Import sessions from CSV file">
+        ↑ Import CSV
+      </button>
+      <input type="file" id="import-file-input" accept=".csv,text/csv" aria-hidden="true" tabindex="-1">
+      <hr class="divider">
+      <button class="btn btn-ghost" id="btn-clear" aria-label="Clear all sessions" style="color: var(--danger); border-color: var(--danger);">
+        ✕ Clear All
+      </button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════ LOWER PANELS ═══════════ -->
+<div class="main-lower">
+
+  <!-- INSIGHTS PANEL (full width) -->
+  <section class="panel insights-panel" id="insights-panel" aria-labelledby="insights-heading">
+    <div class="collapsible-header" id="insights-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="insights-body">
+      <span class="panel-title" id="insights-heading">📊 Weekly Insight Report</span>
+      <span class="panel-badge" id="insights-badge">—</span>
+      <span class="collapse-arrow">▾</span>
+    </div>
+    <div class="collapsible-body" id="insights-body">
+      <div class="stat-grid" id="insights-stats">
+        <!-- numeric summary populated by JS -->
+      </div>
+      <div id="insights-early" class="early-stage-notice" style="display:none">
+        ℹ Early stage — need 3+ weeks of data for reliable insights. Showing what's available.
+      </div>
+      <div class="insights-list" id="insights-list">
+        <!-- insight cards populated by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- STREAK + GOALS row -->
+  <div class="streak-goals-row" style="grid-column:1/-1; display:contents">
+
+    <!-- STREAKS PANEL -->
+    <section class="panel" id="streaks-panel" aria-labelledby="streaks-heading">
+      <div class="collapsible-header" id="streaks-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="streaks-body">
+        <span class="panel-title" id="streaks-heading">🔥 Focus Streaks</span>
+        <span class="collapse-arrow">▾</span>
+      </div>
+      <div class="collapsible-body" id="streaks-body">
+        <div class="streak-display" id="streaks-display">
+          <!-- populated by JS -->
+        </div>
+        <div style="padding: 0 1rem 0.75rem; font-size: 0.65rem; color: var(--text-muted);">
+          Focus day = ≥60 min total + at least 1 deep session (≥45 min)
+        </div>
+      </div>
+    </section>
+
+    <!-- GOALS PANEL -->
+    <section class="panel" id="goals-panel" aria-labelledby="goals-heading">
+      <div class="collapsible-header" id="goals-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="goals-body">
+        <span class="panel-title" id="goals-heading">🎯 Goals & Targets</span>
+        <span class="collapse-arrow">▾</span>
+      </div>
+      <div class="collapsible-body" id="goals-body">
+        <div class="progress-wrap" id="goals-progress">
+          <!-- progress bars populated by JS -->
+        </div>
+        <div class="goals-inputs" id="goals-inputs">
+          <div style="font-size:0.65rem; color:var(--text-dim); margin-bottom:0.25rem; text-transform:uppercase; letter-spacing:0.1em;">Set Targets</div>
+          <div class="goals-row">
+            <label for="goal-weekly-hours">Weekly total</label>
+            <input class="form-input" id="goal-weekly-hours" type="number" min="0" max="168" step="0.5" placeholder="40">
+            <span class="goals-unit">hrs</span>
+          </div>
+          <div class="goals-row">
+            <label for="goal-deep-hours">Deep work</label>
+            <input class="form-input" id="goal-deep-hours" type="number" min="0" max="168" step="0.5" placeholder="20">
+            <span class="goals-unit">hrs</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-save-goals" style="margin-top:0.25rem">Save Goals</button>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /streak-goals-row -->
+
+  <!-- FIREBASE SYNC PANEL -->
+  <section class="panel" id="firebase-panel" aria-labelledby="firebase-heading" style="grid-column:1/-1">
+    <div class="collapsible-header collapsed" id="firebase-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="firebase-body">
+      <span class="panel-title" id="firebase-heading">☁️ Firebase Sync</span>
+      <span class="panel-badge" id="firebase-badge">optional</span>
+      <span class="collapse-arrow">▾</span>
+    </div>
+    <div class="collapsible-body" id="firebase-body" style="display:none">
+      <div class="firebase-config">
+        <div class="firebase-status" id="firebase-status">Not configured — app runs fully local.</div>
+        <div id="firebase-auth-ui" style="display:none">
+          <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; flex-wrap:wrap;">
+            <input class="form-input" id="fb-email" type="email" placeholder="Email" style="flex:1">
+            <input class="form-input" id="fb-password" type="password" placeholder="Password" style="flex:1">
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="btn btn-primary btn-sm" id="btn-fb-login">Sign In</button>
+            <button class="btn btn-ghost btn-sm" id="btn-fb-register">Register</button>
+            <button class="btn btn-ghost btn-sm" id="btn-fb-logout" style="display:none">Sign Out</button>
+            <button class="btn btn-ghost btn-sm" id="btn-fb-sync" style="display:none">↕ Sync Now</button>
+          </div>
+        </div>
+        <details>
+          <summary style="font-size:0.68rem; color:var(--text-dim); cursor:pointer; margin-bottom:0.4rem;">How to enable Firebase sync ▸</summary>
+          <div class="code-snippet" id="firebase-setup-instructions">1. Create a Firebase project at console.firebase.google.com
+2. Enable Authentication → Email/Password
+3. Enable Firestore Database
+4. Add these security rules to Firestore:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+
+5. Go to Project Settings → Your apps → Web app
+6. Copy your firebaseConfig object
+7. Paste it in the JS section below marked:
+   // ===== PASTE FIREBASE CONFIG HERE =====
+
+8. Change FIREBASE_ENABLED = true
+9. Save &amp; redeploy</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /main-lower -->
+
+<!-- Toast container -->
+<div id="toast-container" role="log" aria-live="polite" aria-label="Notifications"></div>
+
+<!-- Edit modal -->
+<div class="modal-backdrop" id="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" style="display:none">
+  <div class="modal">
+    <div class="modal-title" id="edit-modal-title">Edit Session</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="edit-project">Project / Tag</label>
+        <input class="form-input" id="edit-project" type="text" maxlength="80">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="edit-notes">Notes</label>
+        <input class="form-input" id="edit-notes" type="text" maxlength="200">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="edit-cancel">Cancel</button>
+      <button class="btn btn-primary" id="edit-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   TIMETRACKER — Vanilla JS Single-File PWA
+   Modules: Storage · Sessions · Timer · Render · CSV · PWA · UI
+═══════════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+/* ───────────────────────────────────────────────────────
+   MODULE: Storage
+   Wraps localStorage with in-memory fallback.
+─────────────────────────────────────────────────────── */
+const Storage = (() => {
+  const KEY = 'timetracker_sessions_v1';
+  let _available = true;
+  let _memory = [];
+
+  // Test localStorage availability
+  try {
+    const test = '__tt_test__';
+    localStorage.setItem(test, '1');
+    localStorage.removeItem(test);
+  } catch (e) {
+    _available = false;
+    document.getElementById('storage-warning').style.display = 'block';
+  }
+
+  function load() {
+    if (!_available) return _memory;
+    try {
+      return JSON.parse(localStorage.getItem(KEY) || '[]');
+    } catch { return []; }
+  }
+
+  function save(sessions) {
+    _memory = sessions;
+    if (!_available) return;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(sessions));
+    } catch (e) {
+      if (e.name === 'QuotaExceededError') {
+        Toast.show('Storage full! Export CSV to free up space.', 'error');
+      }
+    }
+  }
+
+  return { load, save, get available() { return _available; } };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: Sessions
+   CRUD operations for session objects.
+─────────────────────────────────────────────────────── */
+const Sessions = (() => {
+  let _list = Storage.load();
+
+  /** Generate collision-safe UUID */
+  function uid() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function persist() { Storage.save(_list); }
+
+  function all() { return [..._list]; }
+
+  function getActive() { return _list.find(s => s.endISO === null) || null; }
+
+  function start(project, notes) {
+    const session = {
+      id: uid(),
+      startISO: new Date().toISOString(),
+      endISO: null,
+      project: project.trim(),
+      notes: notes.trim()
+    };
+    _list.unshift(session);
+    persist();
+    return session;
+  }
+
+  function stop() {
+    const active = getActive();
+    if (!active) return null;
+    active.endISO = new Date().toISOString();
+    active.durationMins = computeDuration(active.startISO, active.endISO);
+    persist();
+    return active;
+  }
+
+  function update(id, fields) {
+    const s = _list.find(s => s.id === id);
+    if (!s) return;
+    if (fields.project !== undefined) s.project = fields.project.trim();
+    if (fields.notes   !== undefined) s.notes   = fields.notes.trim();
+    persist();
+  }
+
+  function remove(id) {
+    _list = _list.filter(s => s.id !== id);
+    persist();
+  }
+
+  function replaceAll(sessions) {
+    _list = sessions;
+    persist();
+  }
+
+  /**
+   * Compute duration in whole minutes from ISO strings.
+   * Uses epoch ms — handles midnight crossings automatically.
+   * If result is negative (clock tampering), normalises by adding 24h multiples.
+   */
+  function computeDuration(startISO, endISO) {
+    let ms = new Date(endISO) - new Date(startISO);
+    if (ms < 0) {
+      // Normalise: keep adding 24h until positive (rare clock-skew case)
+      while (ms < 0) ms += 86400000;
+    }
+    return Math.round(ms / 60000);
+  }
+
+  return { all, getActive, start, stop, update, remove, replaceAll, computeDuration };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: Timer
+   Manages live-update interval for the running session.
+─────────────────────────────────────────────────────── */
+const Timer = (() => {
+  let _interval = null;
+
+  function start() {
+    if (_interval) return;
+    _interval = setInterval(tick, 10000); // every 10s
+    tick(); // immediate first tick
+  }
+
+  function stop() {
+    if (_interval) { clearInterval(_interval); _interval = null; }
+  }
+
+  function tick() {
+    const active = Sessions.getActive();
+    if (!active) { stop(); UI.setIdle(); return; }
+    const elapsed = Math.round((Date.now() - new Date(active.startISO)) / 60000);
+    const hours = Math.floor(elapsed / 60);
+    const mins  = elapsed % 60;
+    const display = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    document.getElementById('live-timer').textContent = display;
+    document.getElementById('status-text').innerHTML =
+      `Running — started <strong>${new Date(active.startISO).toLocaleTimeString()}</strong>`;
+  }
+
+  return { start, stop };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: Toast
+   Non-intrusive notification system.
+─────────────────────────────────────────────────────── */
+const Toast = (() => {
+  function show(message, type = 'info', duration = 3500) {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.style.animation = 'slideOut 0.2s ease forwards';
+      el.addEventListener('animationend', () => el.remove());
+    }, duration);
+  }
+  return { show };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: Render
+   Populates sessions table and weekly summary.
+─────────────────────────────────────────────────────── */
+const Render = (() => {
+
+  /** Format ISO as locale date string */
+  function fmtDate(iso) {
+    return iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' }) : '—';
+  }
+
+  /** Format ISO as locale time string */
+  function fmtTime(iso) {
+    return iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—';
+  }
+
+  /** Get Monday of the week for a given ISO string */
+  function weekStart(iso) {
+    const d = new Date(iso);
+    const day = d.getDay(); // 0=Sun
+    const diff = (day === 0) ? -6 : 1 - day; // adjust to Monday
+    const mon = new Date(d);
+    mon.setDate(d.getDate() + diff);
+    return mon.toISOString().slice(0, 10);
+  }
+
+  function sessions() {
+    const list = Sessions.all();
+    const tbody = document.getElementById('sessions-tbody');
+    const empty = document.getElementById('sessions-empty');
+    document.getElementById('session-count').textContent = list.length;
+
+    tbody.innerHTML = '';
+
+    if (list.length === 0) {
+      empty.style.display = 'block';
+      empty.setAttribute('aria-hidden', 'false');
+      return;
+    }
+
+    empty.style.display = 'none';
+    empty.setAttribute('aria-hidden', 'true');
+
+    list.forEach(s => {
+      const isRunning = s.endISO === null;
+      const dur = isRunning
+        ? Math.round((Date.now() - new Date(s.startISO)) / 60000)
+        : (s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO));
+
+      // Flag possible clock-skew on completed sessions
+      const rawMs = isRunning ? null : (new Date(s.endISO) - new Date(s.startISO));
+      const clockWarn = (!isRunning && rawMs !== null && rawMs < 0);
+
+      const tr = document.createElement('tr');
+
+      tr.innerHTML = `
+        <td>${fmtDate(s.startISO)}</td>
+        <td>${fmtTime(s.startISO)}</td>
+        <td>${isRunning ? '<span class="running-indicator">live</span>' : fmtTime(s.endISO)}</td>
+        <td class="td-duration">
+          ${isRunning ? '…' : dur + 'm'}
+          ${clockWarn ? '<span class="clock-warn" title="Clock anomaly detected">⚠</span>' : ''}
+        </td>
+        <td class="td-project">${escHtml(s.project || '')}</td>
+        <td class="td-notes">${escHtml(s.notes || '')}</td>
+        <td class="td-actions">
+          <button class="btn btn-ghost btn-sm" data-action="edit" data-id="${s.id}" aria-label="Edit session">✎</button>
+          <button class="btn btn-ghost btn-sm" data-action="delete" data-id="${s.id}"
+            style="color:var(--danger)" aria-label="Delete session">✕</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function summary() {
+    const list = Sessions.all().filter(s => s.endISO !== null);
+    const tbody = document.getElementById('summary-tbody');
+    const empty = document.getElementById('summary-empty');
+
+    // Group by week start
+    const map = {};
+    list.forEach(s => {
+      const ws = weekStart(s.startISO);
+      if (!map[ws]) map[ws] = 0;
+      const dur = s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO);
+      map[ws] += dur;
+    });
+
+    const weeks = Object.keys(map).sort().reverse();
+
+    if (weeks.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+
+    empty.style.display = 'none';
+    tbody.innerHTML = '';
+
+    weeks.forEach(ws => {
+      const mins  = map[ws];
+      const hours = (mins / 60).toFixed(2);
+      let cls, statusLabel, pillCls;
+
+      if (mins < 300) {
+        cls = 'summary-row-green'; statusLabel = 'Under 5h'; pillCls = 'green';
+      } else if (mins <= 480) {
+        cls = 'summary-row-yellow'; statusLabel = '5–8h'; pillCls = 'yellow';
+      } else {
+        cls = 'summary-row-red'; statusLabel = 'Over 8h'; pillCls = 'red';
+      }
+
+      const tr = document.createElement('tr');
+      tr.className = cls;
+      tr.innerHTML = `
+        <td>${ws}</td>
+        <td>${mins.toLocaleString()}</td>
+        <td>${hours}</td>
+        <td><span class="status-pill ${pillCls}">${statusLabel}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function all() { sessions(); summary(); }
+
+  return { all, sessions, summary, weekStart };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: CSV
+   Robust import/export with quoted-field parser.
+─────────────────────────────────────────────────────── */
+const CSV = (() => {
+  const HEADER = 'WeekStart,Date,StartISO,EndISO,DurationMins,Project,Notes';
+
+  /** Escape a field value for CSV */
+  function escField(v) {
+    const s = String(v == null ? '' : v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  /** Robust CSV row parser — handles quoted fields and escaped quotes */
+  function parseRow(line) {
+    const fields = [];
+    let i = 0;
+    while (i < line.length) {
+      if (line[i] === '"') {
+        let field = '';
+        i++; // skip opening quote
+        while (i < line.length) {
+          if (line[i] === '"' && line[i + 1] === '"') {
+            field += '"'; i += 2;
+          } else if (line[i] === '"') {
+            i++; break; // closing quote
+          } else {
+            field += line[i++];
+          }
+        }
+        fields.push(field);
+        if (line[i] === ',') i++;
+      } else {
+        let start = i;
+        while (i < line.length && line[i] !== ',') i++;
+        fields.push(line.slice(start, i));
+        if (line[i] === ',') i++;
+      }
+    }
+    return fields;
+  }
+
+  /** Export all sessions to CSV and trigger download */
+  function exportCSV() {
+    const sessions = Sessions.all();
+    if (sessions.length === 0) { Toast.show('No sessions to export.', 'warn'); return; }
+
+    const lines = [HEADER];
+    sessions.forEach(s => {
+      const dur = s.endISO ? (s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO)) : '';
+      lines.push([
+        s.endISO ? Render.weekStart(s.startISO) : '',
+        s.startISO ? s.startISO.slice(0,10) : '',
+        s.startISO || '',
+        s.endISO || '',
+        dur,
+        s.project || '',
+        s.notes || ''
+      ].map(escField).join(','));
+    });
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `timetracker_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show(`Exported ${sessions.length} session(s).`);
+  }
+
+  /**
+   * Import from CSV file.
+   * Accepts flexible headers: StartISO / startISO / Start / Start Time, etc.
+   */
+  function importCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { Toast.show('CSV is empty or has no data rows.', 'error'); return; }
+
+      // Parse header row and normalise keys
+      const rawHeaders = parseRow(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
+      const findCol = (...variants) => {
+        for (const v of variants) {
+          const idx = rawHeaders.indexOf(v.toLowerCase().replace(/\s+/g, ''));
+          if (idx !== -1) return idx;
+        }
+        return -1;
+      };
+
+      const colStart   = findCol('startiso', 'start_iso', 'start', 'starttime', 'start_time');
+      const colEnd     = findCol('endiso', 'end_iso', 'end', 'endtime', 'end_time');
+      const colProject = findCol('project', 'tag', 'projecttag');
+      const colNotes   = findCol('notes', 'note', 'description');
+      const colDur     = findCol('durationmins', 'duration', 'durationminutes', 'mins');
+
+      if (colStart === -1) {
+        Toast.show('Cannot find Start column in CSV. Expected: StartISO or Start.', 'error');
+        return;
+      }
+
+      let imported = 0, skipped = 0;
+      const reasons = [];
+      const newSessions = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const fields = parseRow(lines[i]);
+        const startRaw = colStart !== -1 ? (fields[colStart] || '').trim() : '';
+        if (!startRaw) { skipped++; reasons.push(`Row ${i+1}: missing start`); continue; }
+
+        let startISO;
+        try {
+          const d = new Date(startRaw);
+          if (isNaN(d.getTime())) throw new Error('Invalid date');
+          startISO = d.toISOString();
+        } catch {
+          skipped++; reasons.push(`Row ${i+1}: invalid start timestamp "${startRaw}"`); continue;
+        }
+
+        let endISO = null;
+        if (colEnd !== -1 && fields[colEnd] && fields[colEnd].trim()) {
+          try {
+            const d = new Date(fields[colEnd].trim());
+            if (!isNaN(d.getTime())) endISO = d.toISOString();
+          } catch { /* ignore bad end time */ }
+        }
+
+        const dur = endISO ? Sessions.computeDuration(startISO, endISO) : null;
+
+        newSessions.push({
+          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+          startISO,
+          endISO,
+          durationMins: dur,
+          project: colProject !== -1 ? (fields[colProject] || '').trim() : '',
+          notes:   colNotes   !== -1 ? (fields[colNotes]   || '').trim() : ''
+        });
+        imported++;
+      }
+
+      // Merge with existing (deduplicate by startISO)
+      const existing = Sessions.all();
+      const existingStarts = new Set(existing.map(s => s.startISO));
+      const toAdd = newSessions.filter(s => !existingStarts.has(s.startISO));
+      Sessions.replaceAll([...toAdd, ...existing]);
+      Render.all();
+
+      let msg = `Imported ${toAdd.length} session(s).`;
+      if (imported > toAdd.length) msg += ` ${imported - toAdd.length} duplicate(s) skipped.`;
+      if (skipped > 0) msg += ` ${skipped} invalid row(s) skipped.`;
+      Toast.show(msg, skipped > 0 ? 'warn' : 'info', 5000);
+
+      if (reasons.length > 0) console.warn('CSV import issues:', reasons);
+    };
+    reader.readAsText(file);
+  }
+
+  return { exportCSV, importCSV };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: UI
+   Event binding and DOM state management.
+─────────────────────────────────────────────────────── */
+const UI = (() => {
+  const $start  = document.getElementById('btn-start');
+  const $stop   = document.getElementById('btn-stop');
+  const $dot    = document.getElementById('status-dot');
+  const $timer  = document.getElementById('live-timer');
+
+  function setRunning() {
+    $start.disabled = true;
+    $stop.disabled  = false;
+    $dot.classList.add('running');
+    $timer.classList.add('visible');
+  }
+
+  function setIdle() {
+    $start.disabled = false;
+    $stop.disabled  = true;
+    $dot.classList.remove('running');
+    $timer.classList.remove('visible');
+    document.getElementById('status-text').textContent = 'Not running';
+  }
+
+  function init() {
+    // Restore state if session was running
+    if (Sessions.getActive()) { setRunning(); Timer.start(); }
+    else setIdle();
+
+    Render.all();
+
+    // ── Start ──────────────────────────────────────────
+    $start.addEventListener('click', () => {
+      if (Sessions.getActive()) {
+        Toast.show('A session is already running! Stop it first.', 'warn');
+        return;
+      }
+      const project = document.getElementById('input-project').value;
+      const notes   = document.getElementById('input-notes').value;
+      Sessions.start(project, notes);
+      setRunning();
+      Timer.start();
+      Render.all();
+      Toast.show('Session started.');
+    });
+
+    // ── Stop ───────────────────────────────────────────
+    $stop.addEventListener('click', () => {
+      if (!Sessions.getActive()) {
+        Toast.show('No session is running.', 'warn');
+        return;
+      }
+      const s = Sessions.stop();
+      Timer.stop();
+      setIdle();
+      Render.all();
+      Toast.show(`Stopped. Duration: ${s.durationMins}m`);
+    });
+
+    // ── Table actions (edit / delete) via delegation ───
+    document.getElementById('sessions-tbody').addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const id     = btn.dataset.id;
+      const action = btn.dataset.action;
+
+      if (action === 'delete') {
+        const s = Sessions.all().find(x => x.id === id);
+        const isActive = s && s.endISO === null;
+        const msg = isActive
+          ? 'This is the running session. Stop and delete it?'
+          : 'Delete this session?';
+        if (!confirm(msg)) return;
+        if (isActive) { Timer.stop(); setIdle(); }
+        Sessions.remove(id);
+        Render.all();
+        Toast.show('Session deleted.');
+      }
+
+      if (action === 'edit') {
+        const s = Sessions.all().find(x => x.id === id);
+        if (!s) return;
+        const modal = document.getElementById('edit-modal');
+        document.getElementById('edit-project').value = s.project || '';
+        document.getElementById('edit-notes').value   = s.notes   || '';
+        modal.style.display = 'flex';
+        document.getElementById('edit-project').focus();
+
+        const doSave = () => {
+          Sessions.update(id, {
+            project: document.getElementById('edit-project').value,
+            notes:   document.getElementById('edit-notes').value
+          });
+          modal.style.display = 'none';
+          Render.all();
+          Toast.show('Session updated.');
+        };
+
+        document.getElementById('edit-save').onclick   = doSave;
+        document.getElementById('edit-cancel').onclick = () => modal.style.display = 'none';
+      }
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('edit-modal').addEventListener('click', e => {
+      if (e.target === document.getElementById('edit-modal'))
+        document.getElementById('edit-modal').style.display = 'none';
+    });
+
+    // Modal Enter key shortcut
+    document.getElementById('edit-modal').addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.getElementById('edit-modal').style.display = 'none';
+      if (e.key === 'Enter' && e.target !== document.getElementById('edit-cancel'))
+        document.getElementById('edit-save').click();
+    });
+
+    // ── Export ─────────────────────────────────────────
+    document.getElementById('btn-export').addEventListener('click', CSV.exportCSV);
+
+    // ── Import ─────────────────────────────────────────
+    document.getElementById('btn-import').addEventListener('click', () => {
+      document.getElementById('import-file-input').click();
+    });
+    document.getElementById('import-file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file) CSV.importCSV(file);
+      e.target.value = ''; // reset so same file can be re-imported
+    });
+
+    // ── Clear All ──────────────────────────────────────
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      if (!confirm('Delete ALL sessions? This cannot be undone.')) return;
+      if (Sessions.getActive()) { Timer.stop(); setIdle(); }
+      Sessions.replaceAll([]);
+      Render.all();
+      Toast.show('All sessions cleared.');
+    });
+
+    // ── Keyboard shortcuts (S = Start, E = End) ────────
+    document.addEventListener('keydown', e => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.key === 's' || e.key === 'S') $start.click();
+      if (e.key === 'e' || e.key === 'E') $stop.click();
+    });
+  }
+
+  return { init, setIdle, setRunning };
+})();
+
+/* ───────────────────────────────────────────────────────
+   MODULE: PWA
+   Service worker registration for offline + installability.
+─────────────────────────────────────────────────────── */
+const PWA = (() => {
+  function register() {
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // sw.js not found — register an inline blob worker for PWA install signal
+      const swCode = `
+        const CACHE = 'tt-v1';
+        self.addEventListener('install', e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/'])));
+          self.skipWaiting();
+        });
+        self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+        self.addEventListener('fetch', e => {
+          e.respondWith(
+            caches.match(e.request).then(r => r || fetch(e.request).catch(() => r))
+          );
+        });
+      `;
+      const blob = new Blob([swCode], { type: 'application/javascript' });
+      const url  = URL.createObjectURL(blob);
+      return navigator.serviceWorker.register(url);
+    });
+  }
+  return { register };
+})();
+
+/* ───────────────────────────────────────────────────────
+   UTILS
+─────────────────────────────────────────────────────── */
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS MODULE
+   Computes timeflow profile, deviations, and insights.
+   Baseline: last 8 full weeks (or full history if <8).
+   All computed from session history — nothing stored except cache.
+═══════════════════════════════════════════════════════ */
+
+const Analytics = (() => {
+  const CACHE_KEY    = 'timetracker_insight_cache_v1';
+  const DEEP_THRESH  = 45; // minutes — a "deep" session
+
+  /** Get ISO week-start (Monday) string for a given ISO timestamp */
+  function weekStartOf(iso) {
+    const d = new Date(iso);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(d);
+    mon.setDate(d.getDate() + diff);
+    return mon.toISOString().slice(0, 10);
+  }
+
+  /** Get start of local calendar day as ISO string */
+  function dayOf(iso) {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  /**
+   * getUserHistory(windowWeeks)
+   * Returns completed sessions grouped by week, up to windowWeeks full weeks back.
+   * Excludes the current (partial) week.
+   */
+  function getUserHistory(windowWeeks = 8) {
+    const sessions = Sessions.all().filter(s => s.endISO !== null);
+    const currentWeekStart = weekStartOf(new Date().toISOString());
+    const weekMap = {};
+
+    sessions.forEach(s => {
+      const ws = weekStartOf(s.startISO);
+      if (ws === currentWeekStart) return; // skip current partial week
+      if (!weekMap[ws]) weekMap[ws] = [];
+      weekMap[ws].push(s);
+    });
+
+    const sortedWeeks = Object.keys(weekMap).sort().reverse().slice(0, windowWeeks);
+    return sortedWeeks.map(ws => ({ weekStart: ws, sessions: weekMap[ws] }));
+  }
+
+  /**
+   * computeWeekStats(sessions)
+   * Computes per-week metrics from a list of sessions.
+   */
+  function computeWeekStats(sessions) {
+    if (!sessions.length) return null;
+
+    const durations = sessions.map(s => s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO));
+    const totalMinutes   = durations.reduce((a, b) => a + b, 0);
+    const deepSessions   = sessions.filter((s, i) => durations[i] >= DEEP_THRESH);
+    const deepWorkMinutes = deepSessions.reduce((a, _, i) => a + (durations[sessions.indexOf(deepSessions[i])] || 0), 0);
+
+    // Compute deepWorkMinutes correctly
+    let dwMins = 0;
+    sessions.forEach((s, i) => { if (durations[i] >= DEEP_THRESH) dwMins += durations[i]; });
+
+    const activeDays = new Set(sessions.map(s => dayOf(s.startISO))).size;
+    const sessionCount = sessions.length;
+    const avgSessionLength = totalMinutes / sessionCount;
+    const longestSession = Math.max(...durations);
+    const fragmentationIndex = activeDays > 0 ? sessionCount / activeDays : 0;
+
+    // Hour distribution (0-23) based on local start hour
+    const hourDist = new Array(24).fill(0);
+    sessions.forEach(s => { hourDist[new Date(s.startISO).getHours()]++; });
+    const mostActiveHour = hourDist.indexOf(Math.max(...hourDist));
+
+    // Day distribution (0=Sun..6=Sat)
+    const dayDist = new Array(7).fill(0);
+    sessions.forEach(s => { dayDist[new Date(s.startISO).getDay()]++; });
+    const mostActiveDay = dayDist.indexOf(Math.max(...dayDist));
+
+    return {
+      totalMinutes, deepWorkMinutes: dwMins,
+      deepSessionCount: deepSessions.length,
+      sessionCount, avgSessionLength, longestSession,
+      activeDays, fragmentationIndex,
+      mostActiveHour, mostActiveDay,
+      hourDist, dayDist
+    };
+  }
+
+  /**
+   * computeTimeflowProfile(history)
+   * Returns mean, stddev, percentiles for each metric across all historical weeks.
+   */
+  function computeTimeflowProfile(history) {
+    const weekStats = history.map(w => computeWeekStats(w.sessions)).filter(Boolean);
+    if (weekStats.length === 0) return null;
+
+    const metrics = ['totalMinutes','deepWorkMinutes','sessionCount','avgSessionLength','longestSession','activeDays','fragmentationIndex'];
+    const profile = {};
+
+    metrics.forEach(m => {
+      const vals = weekStats.map(w => w[m]).filter(v => v != null);
+      const n = vals.length;
+      const mean = vals.reduce((a,b) => a+b, 0) / n;
+      const variance = vals.reduce((a,b) => a + (b - mean) ** 2, 0) / Math.max(n - 1, 1);
+      const sd = Math.sqrt(variance);
+      const sorted = [...vals].sort((a,b) => a-b);
+      const p25 = sorted[Math.floor(n * 0.25)];
+      const p75 = sorted[Math.floor(n * 0.75)];
+      profile[m] = { mean, sd, p25, p75, vals };
+    });
+
+    // Aggregate hour distribution
+    const hourDist = new Array(24).fill(0);
+    weekStats.forEach(w => w.hourDist.forEach((v,i) => hourDist[i] += v));
+    profile.hourDist = hourDist;
+    profile.weekCount = weekStats.length;
+
+    return profile;
+  }
+
+  /**
+   * getCurrentWeekStats()
+   * Returns stats for the current (partial) week.
+   */
+  function getCurrentWeekStats() {
+    const currentWS = weekStartOf(new Date().toISOString());
+    const sessions = Sessions.all().filter(s => s.endISO !== null && weekStartOf(s.startISO) === currentWS);
+    return computeWeekStats(sessions) || { totalMinutes:0, deepWorkMinutes:0, deepSessionCount:0, sessionCount:0, avgSessionLength:0, longestSession:0, activeDays:0, fragmentationIndex:0, mostActiveHour:null, mostActiveDay:null, hourDist:new Array(24).fill(0), dayDist:new Array(7).fill(0) };
+  }
+
+  /**
+   * calculateDeviation(current, baseline)
+   * Returns percentChange and zScore for each metric.
+   */
+  function calculateDeviation(current, profile) {
+    if (!profile) return {};
+    const metrics = ['totalMinutes','deepWorkMinutes','sessionCount','avgSessionLength','fragmentationIndex'];
+    const out = {};
+    metrics.forEach(m => {
+      const { mean, sd } = profile[m] || {};
+      if (mean == null) return;
+      const val = current[m] || 0;
+      const percentChange = mean > 0 ? ((val - mean) / mean) * 100 : 0;
+      const zScore = sd > 0 ? (val - mean) / sd : 0;
+      out[m] = { val, mean, sd, percentChange, zScore };
+    });
+    return out;
+  }
+
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const HOUR_LABELS = Array.from({length:24}, (_,i) => i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i-12}pm`);
+
+  /**
+   * generatePersonalizedInsights(profile, currentWeekStats, deviation)
+   * Returns up to 6 insight objects, prioritised by severity.
+   */
+  function generatePersonalizedInsights(profile, current, dev) {
+    if (!profile || !dev) return [];
+    const insights = [];
+    const uid = () => Math.random().toString(36).slice(2,8);
+
+    // 1. ANOMALY — total minutes
+    if (dev.totalMinutes) {
+      const { zScore, percentChange, mean, val } = dev.totalMinutes;
+      if (Math.abs(zScore) >= 2 || Math.abs(percentChange) >= 50) {
+        const dir = val > mean ? 'up' : 'down';
+        insights.push({
+          id: uid(), category: 'anomaly', severity: Math.abs(zScore) >= 2 ? 'warning' : 'notice',
+          title: `Unusual week — total time is ${dir} ${Math.abs(percentChange).toFixed(0)}%`,
+          message: dir === 'up'
+            ? `You've logged ${Math.round(val/60*10)/10}h this week vs your usual ~${Math.round(mean/60*10)/10}h. Strong week!`
+            : `Only ${Math.round(val/60*10)/10}h logged so far vs your usual ~${Math.round(mean/60*10)/10}h.`,
+          details: `z-score: ${zScore.toFixed(2)} | change: ${percentChange.toFixed(1)}% | baseline mean: ${mean.toFixed(0)}m`
+        });
+      }
+    }
+
+    // 2. DEEP WORK change
+    if (dev.deepWorkMinutes) {
+      const { zScore, percentChange, mean, val } = dev.deepWorkMinutes;
+      const score = current.totalMinutes > 0 ? (current.deepWorkMinutes / current.totalMinutes) * 100 : 0;
+      if (Math.abs(percentChange) >= 30 || Math.abs(zScore) >= 1) {
+        const dir = val > mean ? 'higher' : 'lower';
+        insights.push({
+          id: uid(), category: 'deep_work', severity: score < 30 ? 'warning' : score > 60 ? 'success' : 'notice',
+          title: `Deep work ${dir} than usual`,
+          message: `${Math.round(val/60*10)/10}h of deep work (sessions ≥45m) = ${score.toFixed(0)}% of your time. Baseline: ~${Math.round(mean/60*10)/10}h.`,
+          details: `change: ${percentChange.toFixed(1)}% | z-score: ${zScore.toFixed(2)}`
+        });
+      }
+    }
+
+    // 3. FRAGMENTATION
+    if (dev.fragmentationIndex) {
+      const { val, mean, percentChange } = dev.fragmentationIndex;
+      if (val > mean * 1.4 && current.sessionCount >= 3) {
+        insights.push({
+          id: uid(), category: 'fragmentation', severity: 'warning',
+          title: 'More fragmented than usual',
+          message: `${val.toFixed(1)} sessions/active-day vs your average ${mean.toFixed(1)}. Consider grouping tasks into longer blocks.`,
+          details: `fragmentation index: ${val.toFixed(2)} | baseline: ${mean.toFixed(2)} | change: ${percentChange.toFixed(1)}%`
+        });
+      }
+    }
+
+    // 4. HOUR SHIFT
+    if (current.mostActiveHour !== null && profile.hourDist) {
+      const baseTopHour = profile.hourDist.indexOf(Math.max(...profile.hourDist));
+      if (Math.abs(current.mostActiveHour - baseTopHour) >= 3) {
+        insights.push({
+          id: uid(), category: 'shift', severity: 'info',
+          title: `Peak hour shifted to ${HOUR_LABELS[current.mostActiveHour]}`,
+          message: `Historically you peak around ${HOUR_LABELS[baseTopHour]}, but this week your busiest hour is ${HOUR_LABELS[current.mostActiveHour]}.`,
+          details: `current peak: ${HOUR_LABELS[current.mostActiveHour]} | baseline peak: ${HOUR_LABELS[baseTopHour]}`
+        });
+      }
+    }
+
+    // 5. TREND — session count
+    if (dev.sessionCount) {
+      const { zScore, percentChange, mean, val } = dev.sessionCount;
+      if (Math.abs(zScore) >= 1 && Math.abs(percentChange) >= 25) {
+        insights.push({
+          id: uid(), category: 'trend', severity: 'info',
+          title: `Session count ${val > mean ? 'higher' : 'lower'} than normal`,
+          message: `${val} sessions this week vs your typical ~${mean.toFixed(0)}. ${val > mean ? 'More sessions — ensure they are long enough to be productive.' : 'Fewer sessions this week.'}`,
+          details: `z-score: ${zScore.toFixed(2)} | change: ${percentChange.toFixed(1)}%`
+        });
+      }
+    }
+
+    // 6. ACTIONABLE advice (always add 1 unless we already have 6)
+    if (insights.length < 6) {
+      const score = current.totalMinutes > 0 ? (current.deepWorkMinutes / current.totalMinutes) * 100 : 0;
+      let advice;
+      if (score < 30 && current.totalMinutes > 60) {
+        advice = { title: 'Boost your deep work ratio', message: 'Less than 30% of your time is in deep sessions (≥45m). Try scheduling at least one uninterrupted 90m block each day.' };
+      } else if (current.activeDays < 3 && current.totalMinutes > 0) {
+        advice = { title: 'Spread work across more days', message: `You've only worked ${current.activeDays} day(s) this week. Distributing work more evenly reduces fatigue.` };
+      } else if (current.sessionCount > 0 && current.avgSessionLength < 30) {
+        advice = { title: 'Sessions are short on average', message: `Average session: ${current.avgSessionLength.toFixed(0)}m. Aim for 45–90m blocks for real output.` };
+      } else if (current.totalMinutes === 0) {
+        advice = { title: 'No sessions recorded yet this week', message: 'Hit Start to begin tracking. Consistent logging unlocks better insights.' };
+      } else {
+        advice = { title: 'Keep it up', message: `${Math.round(current.totalMinutes/60*10)/10}h tracked this week. Stay consistent!` };
+      }
+      insights.push({ id: uid(), category: 'advice', severity: 'info', title: advice.title, message: advice.message, details: null });
+    }
+
+    return insights.slice(0, 6);
+  }
+
+  return { getUserHistory, computeTimeflowProfile, getCurrentWeekStats, calculateDeviation, generatePersonalizedInsights, computeWeekStats, weekStartOf, dayOf, DEEP_THRESH };
+})();
+
+/* ═══════════════════════════════════════════════════════
+   GOALS MODULE
+   Persists weekly targets in localStorage. Renders progress bars.
+═══════════════════════════════════════════════════════ */
+const Goals = (() => {
+  const KEY = 'timetracker_goals_v1';
+  const DEEP_THRESH = Analytics.DEEP_THRESH;
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY) || 'null') || { weeklyTargetMinutes: 0, weeklyDeepWorkMinutes: 0, updatedAt: null }; }
+    catch { return { weeklyTargetMinutes: 0, weeklyDeepWorkMinutes: 0, updatedAt: null }; }
+  }
+
+  function save(goals) {
+    goals.updatedAt = new Date().toISOString();
+    try { localStorage.setItem(KEY, JSON.stringify(goals)); } catch {}
+  }
+
+  function get() { return load(); }
+
+  function renderProgress() {
+    const goals   = load();
+    const current = Analytics.getCurrentWeekStats();
+    const wrap    = document.getElementById('goals-progress');
+    if (!wrap) return;
+
+    const items = [];
+
+    if (goals.weeklyTargetMinutes > 0) {
+      const pct = Math.min((current.totalMinutes / goals.weeklyTargetMinutes) * 100, 120);
+      const fillClass = pct >= 100 ? 'over' : pct >= 70 ? '' : 'warn';
+      items.push({
+        label: 'Weekly Total',
+        value: `${Math.round(current.totalMinutes/60*10)/10}h / ${Math.round(goals.weeklyTargetMinutes/60*10)/10}h`,
+        pct, fillClass
+      });
+    }
+
+    if (goals.weeklyDeepWorkMinutes > 0) {
+      const pct = Math.min((current.deepWorkMinutes / goals.weeklyDeepWorkMinutes) * 100, 120);
+      const fillClass = pct >= 100 ? 'over' : pct >= 70 ? '' : 'warn';
+      items.push({
+        label: 'Deep Work',
+        value: `${Math.round(current.deepWorkMinutes/60*10)/10}h / ${Math.round(goals.weeklyDeepWorkMinutes/60*10)/10}h`,
+        pct, fillClass
+      });
+    }
+
+    if (items.length === 0) {
+      wrap.innerHTML = `<div style="font-size:0.72rem;color:var(--text-muted);padding:0.5rem 0">Set targets below to see progress.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = items.map(item => `
+      <div class="progress-item">
+        <div class="progress-label-row">
+          <span class="progress-label">${item.label}</span>
+          <span class="progress-value">${item.value} <span style="color:var(--text-dim)">(${Math.min(item.pct,100).toFixed(0)}%)</span></span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill ${item.fillClass}" style="width:${Math.min(item.pct,100)}%"></div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function init() {
+    const goals = load();
+    const $wh = document.getElementById('goal-weekly-hours');
+    const $dh = document.getElementById('goal-deep-hours');
+    if ($wh) $wh.value = goals.weeklyTargetMinutes > 0 ? (goals.weeklyTargetMinutes / 60).toFixed(1) : '';
+    if ($dh) $dh.value = goals.weeklyDeepWorkMinutes > 0 ? (goals.weeklyDeepWorkMinutes / 60).toFixed(1) : '';
+
+    document.getElementById('btn-save-goals')?.addEventListener('click', () => {
+      const wh = parseFloat($wh?.value) || 0;
+      const dh = parseFloat($dh?.value) || 0;
+      save({ weeklyTargetMinutes: Math.round(wh * 60), weeklyDeepWorkMinutes: Math.round(dh * 60) });
+      renderProgress();
+      Toast.show('Goals saved.');
+    });
+
+    renderProgress();
+  }
+
+  return { get, load, save, renderProgress, init };
+})();
+
+/* ═══════════════════════════════════════════════════════
+   STREAKS MODULE
+   Computes focus streaks from session history.
+   Focus day = totalMinutes ≥ 60 AND at least 1 deep session.
+   Never stored — always computed from sessions.
+═══════════════════════════════════════════════════════ */
+const Streaks = (() => {
+  const DEEP_THRESH    = Analytics.DEEP_THRESH;
+  const MIN_DAY_MINS   = 60;
+
+  function getFocusDaySet() {
+    const sessions = Sessions.all().filter(s => s.endISO !== null);
+    const byDay = {};
+    sessions.forEach(s => {
+      const day = Analytics.dayOf(s.startISO);
+      if (!byDay[day]) byDay[day] = [];
+      byDay[day].push(s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO));
+    });
+    const focusDays = new Set();
+    Object.entries(byDay).forEach(([day, durations]) => {
+      const total = durations.reduce((a,b) => a+b, 0);
+      const hasDeep = durations.some(d => d >= DEEP_THRESH);
+      if (total >= MIN_DAY_MINS && hasDeep) focusDays.add(day);
+    });
+    return focusDays;
+  }
+
+  function compute() {
+    const focusDays = getFocusDaySet();
+    if (focusDays.size === 0) return { currentStreak: 0, longestStreak: 0, thisWeekFocusDays: 0 };
+
+    const sorted = [...focusDays].sort();
+
+    // Current streak — walk backwards from yesterday
+    const today = Analytics.dayOf(new Date().toISOString());
+    let streak = 0;
+    const d = new Date();
+    d.setDate(d.getDate() - 1); // start from yesterday
+    while (true) {
+      const dayStr = Analytics.dayOf(d.toISOString());
+      if (focusDays.has(dayStr)) { streak++; d.setDate(d.getDate() - 1); }
+      else break;
+    }
+    // Also count today if it qualifies
+    if (focusDays.has(today)) streak++;
+
+    // Longest streak
+    let longest = 0, run = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i-1]);
+      const curr = new Date(sorted[i]);
+      const diff = (curr - prev) / 86400000;
+      if (diff === 1) { run++; longest = Math.max(longest, run); }
+      else run = 1;
+    }
+    longest = Math.max(longest, run, streak);
+
+    // This week
+    const wsStart = Analytics.weekStartOf(new Date().toISOString());
+    const wsEnd   = new Date(wsStart);
+    wsEnd.setDate(wsEnd.getDate() + 6);
+    let thisWeek = 0;
+    focusDays.forEach(d => {
+      if (d >= wsStart && d <= wsEnd.toISOString().slice(0,10)) thisWeek++;
+    });
+
+    return { currentStreak: streak, longestStreak: longest, thisWeekFocusDays: thisWeek };
+  }
+
+  function render() {
+    const { currentStreak, longestStreak, thisWeekFocusDays } = compute();
+    const el = document.getElementById('streaks-display');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="streak-card">
+        <div class="streak-number ${currentStreak === 0 ? 'cold' : ''}">${currentStreak}</div>
+        <div class="streak-label">Current 🔥</div>
+      </div>
+      <div class="streak-card">
+        <div class="streak-number" style="font-size:1.5rem">${longestStreak}</div>
+        <div class="streak-label">Best Ever</div>
+      </div>
+      <div class="streak-card">
+        <div class="streak-number" style="font-size:1.5rem; color:var(--warn)">${thisWeekFocusDays}</div>
+        <div class="streak-label">This Week</div>
+      </div>
+    `;
+  }
+
+  return { compute, render };
+})();
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS RENDER
+   Populates insight panel, deep work columns in weekly summary,
+   and re-renders streaks/goals on data changes.
+═══════════════════════════════════════════════════════ */
+
+/** Main entry: recompute everything and re-render all analytics panels */
+function recomputeAnalytics() {
+  const history  = Analytics.getUserHistory(8);
+  const profile  = Analytics.computeTimeflowProfile(history);
+  const current  = Analytics.getCurrentWeekStats();
+  const dev      = Analytics.calculateDeviation(current, profile);
+  const insights = Analytics.generatePersonalizedInsights(profile, current, dev);
+
+  renderInsights(history, profile, current, dev, insights);
+  renderDeepWorkInSummary();
+  Goals.renderProgress();
+  Streaks.render();
+
+  // Cache for quick reload (non-critical)
+  try {
+    localStorage.setItem('timetracker_insight_cache_v1', JSON.stringify({
+      ts: Date.now(), current, dev, insights: insights.map(i => ({ id:i.id, category:i.category, severity:i.severity, title:i.title, message:i.message }))
+    }));
+  } catch {}
+}
+
+function renderInsights(history, profile, current, dev, insights) {
+  // Numeric summary bar
+  const statsEl = document.getElementById('insights-stats');
+  if (!statsEl) return;
+  const dwScore = current.totalMinutes > 0 ? (current.deepWorkMinutes / current.totalMinutes * 100).toFixed(0) : 0;
+  const dwClass = dwScore >= 71 ? 'dw-green' : dwScore >= 41 ? 'dw-yellow' : 'dw-red';
+
+  statsEl.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">This Week</div>
+      <div class="stat-value accent">${Math.round(current.totalMinutes/60*10)/10}h</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Deep Work</div>
+      <div class="stat-value">${Math.round(current.deepWorkMinutes/60*10)/10}h</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Deep Score</div>
+      <div class="stat-value"><span class="dw-score ${dwClass}">${dwScore}%</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sessions</div>
+      <div class="stat-value">${current.sessionCount}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Days</div>
+      <div class="stat-value">${current.activeDays}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Session</div>
+      <div class="stat-value">${current.sessionCount > 0 ? Math.round(current.avgSessionLength) : 0}m</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Longest</div>
+      <div class="stat-value">${current.longestSession || 0}m</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Weeks Data</div>
+      <div class="stat-value ${history.length < 3 ? 'warn' : ''}">${history.length}</div>
+    </div>
+  `;
+
+  // Early stage notice
+  const earlyEl = document.getElementById('insights-early');
+  if (earlyEl) earlyEl.style.display = history.length < 3 ? 'block' : 'none';
+
+  // Badge
+  const badge = document.getElementById('insights-badge');
+  if (badge) badge.textContent = `${insights.length} insight${insights.length !== 1 ? 's' : ''}`;
+
+  // Insight cards
+  const listEl = document.getElementById('insights-list');
+  if (!listEl) return;
+
+  if (insights.length === 0) {
+    listEl.innerHTML = '<div style="font-size:0.72rem;color:var(--text-muted);padding:0.5rem 0">Log more sessions to unlock insights.</div>';
+    return;
+  }
+
+  listEl.innerHTML = insights.map(ins => `
+    <div class="insight-card ${ins.severity}" role="article">
+      <div class="insight-title">${escHtml(ins.title)}</div>
+      <div class="insight-msg">${escHtml(ins.message)}</div>
+      ${ins.details ? `
+        <button class="insight-why-toggle" data-id="${ins.id}" aria-expanded="false">Why? ▸</button>
+        <div class="insight-why" id="why-${ins.id}">${escHtml(ins.details)}</div>
+      ` : ''}
+    </div>
+  `).join('');
+
+  // "Why?" toggles
+  listEl.querySelectorAll('.insight-why-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const why = document.getElementById(`why-${btn.dataset.id}`);
+      const open = why.classList.toggle('visible');
+      btn.textContent = open ? 'Why? ▾' : 'Why? ▸';
+      btn.setAttribute('aria-expanded', open);
+    });
+  });
+}
+
+/** Add Deep Work columns to Weekly Summary table */
+function renderDeepWorkInSummary() {
+  const sessions = Sessions.all().filter(s => s.endISO !== null);
+  const DEEP_THRESH = Analytics.DEEP_THRESH;
+
+  // Build week → deep stats map
+  const weekMap = {};
+  sessions.forEach(s => {
+    const ws = Analytics.weekStartOf(s.startISO);
+    if (!weekMap[ws]) weekMap[ws] = { total: 0, deep: 0, deepCount: 0 };
+    const dur = s.durationMins ?? Sessions.computeDuration(s.startISO, s.endISO);
+    weekMap[ws].total += dur;
+    if (dur >= DEEP_THRESH) { weekMap[ws].deep += dur; weekMap[ws].deepCount++; }
+  });
+
+  // Patch each row in summary tbody to add DW columns
+  // (We add TH to summary table header if not already there)
+  const thead = document.querySelector('#summary-tbody')?.closest('table')?.querySelector('thead tr');
+  if (thead && !thead.querySelector('[data-dw]')) {
+    ['DW Hrs','DW Score','DW Sessions'].forEach(label => {
+      const th = document.createElement('th');
+      th.scope = 'col'; th.setAttribute('data-dw','1'); th.textContent = label;
+      thead.appendChild(th);
+    });
+  }
+
+  document.querySelectorAll('#summary-tbody tr').forEach(tr => {
+    // Remove existing DW cells if re-rendering
+    tr.querySelectorAll('[data-dw]').forEach(td => td.remove());
+    const weekStart = tr.querySelector('td')?.textContent?.trim();
+    const stats = weekMap[weekStart];
+    if (!stats) {
+      ['—','—','—'].forEach(v => {
+        const td = document.createElement('td');
+        td.setAttribute('data-dw','1'); td.textContent = v; td.style.color = 'var(--text-muted)';
+        tr.appendChild(td);
+      });
+      return;
+    }
+    const score = stats.total > 0 ? (stats.deep / stats.total * 100).toFixed(0) : 0;
+    const dwClass = score >= 71 ? 'dw-green' : score >= 41 ? 'dw-yellow' : 'dw-red';
+    const hours = (stats.deep / 60).toFixed(1);
+
+    [[hours, ''], [`<span class="dw-score ${dwClass}">${score}%</span>`, ''], [stats.deepCount, '']].forEach(([v]) => {
+      const td = document.createElement('td');
+      td.setAttribute('data-dw','1');
+      td.innerHTML = String(v);
+      tr.appendChild(td);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   COLLAPSIBLE PANELS
+   Handles toggle behaviour for all collapsible sections.
+═══════════════════════════════════════════════════════ */
+function initCollapsibles() {
+  document.querySelectorAll('[id$="-toggle"]').forEach(toggle => {
+    const bodyId = toggle.getAttribute('aria-controls') || toggle.id.replace('-toggle', '-body');
+    const panel  = toggle.closest('.panel') || toggle.parentElement;
+    const body   = document.getElementById(bodyId);
+    if (!body) return;
+
+    const isCollapsed = toggle.classList.contains('collapsed');
+    toggle.setAttribute('aria-expanded', !isCollapsed);
+
+    toggle.addEventListener('click', () => {
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      toggle.setAttribute('aria-expanded', collapsed);
+      toggle.classList.toggle('collapsed', !collapsed);
+    });
+
+    toggle.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.click(); }
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   PATCH: hook recomputeAnalytics into Render.all
+   So analytics always refreshes when sessions change.
+═══════════════════════════════════════════════════════ */
+const _origRenderAll = Render.all.bind(Render);
+Render.all = function() {
+  _origRenderAll();
+  recomputeAnalytics();
+};
+
+/* ═══════════════════════════════════════════════════════
+   FIREBASE MODULE
+   Clean abstraction layer. Fully optional.
+   App works 100% locally when Firebase is not configured.
+═══════════════════════════════════════════════════════ */
+
+// ===== PASTE FIREBASE CONFIG HERE =====
+// Replace null with your firebaseConfig object to enable sync.
+// Example:
+// const FIREBASE_CONFIG = {
+//   apiKey: "AIza...",
+//   authDomain: "your-app.firebaseapp.com",
+//   projectId: "your-app",
+//   ...
+// };
+const FIREBASE_CONFIG = null;
+const FIREBASE_ENABLED = false; // Set to true after pasting config above
+
+const Firebase = (() => {
+  let _auth = null, _db = null, _user = null;
+
+  async function init() {
+    if (!FIREBASE_ENABLED || !FIREBASE_CONFIG) {
+      document.getElementById('firebase-status').textContent = 'Not configured — app runs fully local.';
+      return;
+    }
+
+    // Dynamically load Firebase SDKs
+    try {
+      const { initializeApp }   = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+      const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
+        = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+      const { getFirestore, collection, doc, setDoc, getDocs, deleteDoc }
+        = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+      const app = initializeApp(FIREBASE_CONFIG);
+      _auth = getAuth(app);
+      _db   = getFirestore(app);
+
+      document.getElementById('firebase-auth-ui').style.display = 'block';
+      document.getElementById('firebase-status').textContent = 'Firebase ready — sign in to sync.';
+
+      onAuthStateChanged(_auth, user => {
+        _user = user;
+        const statusEl = document.getElementById('firebase-status');
+        if (user) {
+          statusEl.textContent = `Connected as ${user.email}`;
+          statusEl.classList.add('connected');
+          document.getElementById('btn-fb-login').style.display    = 'none';
+          document.getElementById('btn-fb-register').style.display = 'none';
+          document.getElementById('btn-fb-logout').style.display   = 'inline-flex';
+          document.getElementById('btn-fb-sync').style.display     = 'inline-flex';
+        } else {
+          statusEl.textContent = 'Signed out.';
+          statusEl.classList.remove('connected');
+          document.getElementById('btn-fb-login').style.display    = 'inline-flex';
+          document.getElementById('btn-fb-register').style.display = 'inline-flex';
+          document.getElementById('btn-fb-logout').style.display   = 'none';
+          document.getElementById('btn-fb-sync').style.display     = 'none';
+        }
+      });
+
+      // Wire auth buttons
+      document.getElementById('btn-fb-login').addEventListener('click', async () => {
+        const email = document.getElementById('fb-email').value;
+        const pw    = document.getElementById('fb-password').value;
+        try { await signInWithEmailAndPassword(_auth, email, pw); Toast.show('Signed in.'); }
+        catch(e) { Toast.show(e.message, 'error'); }
+      });
+
+      document.getElementById('btn-fb-register').addEventListener('click', async () => {
+        const email = document.getElementById('fb-email').value;
+        const pw    = document.getElementById('fb-password').value;
+        try { await createUserWithEmailAndPassword(_auth, email, pw); Toast.show('Account created & signed in.'); }
+        catch(e) { Toast.show(e.message, 'error'); }
+      });
+
+      document.getElementById('btn-fb-logout').addEventListener('click', async () => {
+        await signOut(_auth); Toast.show('Signed out.');
+      });
+
+      document.getElementById('btn-fb-sync').addEventListener('click', () => syncIfAuthenticated(_db, collection, doc, setDoc, getDocs));
+
+    } catch(e) {
+      console.error('Firebase init error:', e);
+      document.getElementById('firebase-status').textContent = 'Firebase load error. Check console.';
+    }
+  }
+
+  /**
+   * loadSessions() — returns local sessions (Firebase reads are done in syncIfAuthenticated)
+   */
+  function loadSessions() { return Sessions.all(); }
+
+  /**
+   * saveSessions() — persists locally (Firebase write happens in sync)
+   */
+  function saveSessions(sessions) { Sessions.replaceAll(sessions); }
+
+  /**
+   * syncIfAuthenticated(db, ...)
+   * Merges local sessions with Firestore. Prefer newer updatedAt on conflict.
+   */
+  async function syncIfAuthenticated(db, collection, doc, setDoc, getDocs) {
+    if (!_user || !db) { Toast.show('Not signed in.', 'warn'); return; }
+
+    Toast.show('Syncing…');
+    try {
+      const uid = _user.uid;
+      // Read remote
+      const snap = await getDocs(collection(db, `users/${uid}/sessions`));
+      const remote = {};
+      snap.forEach(d => { remote[d.id] = d.data(); });
+
+      // Merge: local wins on same id if no updatedAt, else newer wins
+      const local = Sessions.all();
+      const localMap = {};
+      local.forEach(s => { localMap[s.id] = { ...s, updatedAt: s.updatedAt || s.endISO || s.startISO }; });
+
+      const merged = { ...remote };
+      Object.values(localMap).forEach(s => {
+        if (!merged[s.id] || (s.updatedAt > (merged[s.id].updatedAt || ''))) {
+          merged[s.id] = s;
+        }
+      });
+
+      const mergedArr = Object.values(merged).sort((a,b) => b.startISO.localeCompare(a.startISO));
+      Sessions.replaceAll(mergedArr);
+
+      // Write new/updated to Firestore
+      for (const s of mergedArr) {
+        const sWithTs = { ...s, updatedAt: s.updatedAt || new Date().toISOString() };
+        await setDoc(doc(db, `users/${uid}/sessions`, s.id), sWithTs);
+      }
+
+      // Sync goals
+      const goals = Goals.load();
+      await setDoc(doc(db, `users/${uid}/config/goals`), goals);
+
+      Render.all();
+      Toast.show(`Sync complete — ${mergedArr.length} sessions.`);
+    } catch(e) {
+      Toast.show('Sync failed: ' + e.message, 'error');
+      console.error(e);
+    }
+  }
+
+  return { init, loadSessions, saveSessions, syncIfAuthenticated };
+})();
+
+/* ═══════════════════════════════════════════════════════
+   SEED TEST DATA — dev helper
+   Generates synthetic sessions for N weeks.
+   Usage: __tt.seedTestData(8)
+═══════════════════════════════════════════════════════ */
+function seedTestData(weeks = 8) {
+  const uid = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const sessions = [];
+  const now = new Date();
+
+  for (let w = 1; w <= weeks; w++) {
+    // 3-6 sessions per week, varying lengths
+    const sessionsThisWeek = 3 + Math.floor(Math.random() * 4);
+    for (let s = 0; s < sessionsThisWeek; s++) {
+      const daysBack = w * 7 - Math.floor(Math.random() * 5);
+      const start = new Date(now);
+      start.setDate(start.getDate() - daysBack);
+      start.setHours(8 + Math.floor(Math.random() * 9), Math.floor(Math.random() * 4) * 15, 0, 0);
+
+      const durationMins = 20 + Math.floor(Math.random() * 120); // 20-140 min
+      const end = new Date(start.getTime() + durationMins * 60000);
+
+      const projects = ['Project A','Project B','Research','Admin','Deep Work'];
+      sessions.push({
+        id: uid(),
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+        durationMins,
+        project: projects[Math.floor(Math.random() * projects.length)],
+        notes: `Seeded week -${w}`
+      });
+    }
+  }
+
+  Sessions.replaceAll([...sessions, ...Sessions.all()]);
+  Render.all();
+  console.log(`✅ Seeded ${sessions.length} sessions across ${weeks} weeks. Run recomputeAnalytics() to refresh.`);
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  PWA.register();
+  UI.init();
+  Goals.init();
+  recomputeAnalytics();
+  initCollapsibles();
+});
+
+/* ═══════════════════════════════════════════════════════
+   TEST HELPERS — call in browser console
+   window.__tt exposes internals for verification
+═══════════════════════════════════════════════════════ */
+window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, recomputeAnalytics, seedTestData };
+
+</script>
+</body>
+</html>
