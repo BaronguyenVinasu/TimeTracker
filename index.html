@@ -985,6 +985,208 @@ td {
     gap: 1.25rem;
   }
 }
+
+/* ═══════════════════════════════════════
+   IDLE CHECK MODAL
+═══════════════════════════════════════ */
+#tt-idle-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(6px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+#tt-idle-modal.visible { display: flex; }
+
+.tt-idle-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-top: 3px solid var(--warn);
+  border-radius: 8px;
+  padding: 1.75rem;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+  animation: scaleIn 0.18s ease;
+}
+
+.tt-idle-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.tt-idle-title {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.tt-idle-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 1.25rem;
+  line-height: 1.6;
+}
+
+.tt-idle-elapsed {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.tt-idle-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.tt-idle-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  width: 100%;
+  font-family: var(--mono);
+}
+
+.tt-idle-option:hover { border-color: var(--border2); background: #1f1f1f; }
+.tt-idle-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tt-idle-option.keep  { border-color: rgba(0,255,136,0.3); }
+.tt-idle-option.keep:hover  { background: #0a1f13; }
+.tt-idle-option.meeting { border-color: rgba(255,170,0,0.3); }
+.tt-idle-option.meeting:hover { background: #1a1200; }
+.tt-idle-option.stop  { border-color: rgba(255,59,59,0.2); }
+.tt-idle-option.stop:hover  { background: #1f0505; }
+
+.tt-idle-opt-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+
+.tt-idle-opt-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.15rem;
+}
+
+.tt-idle-opt-desc {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.tt-idle-meeting-input {
+  display: none;
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  width: 100%;
+  outline: none;
+}
+.tt-idle-meeting-input:focus { border-color: var(--warn); }
+.tt-idle-meeting-input.visible { display: block; }
+
+.tt-idle-countdown-bar {
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 1.25rem;
+}
+.tt-idle-countdown-fill {
+  height: 100%;
+  background: var(--warn);
+  border-radius: 10px;
+  transition: width 1s linear;
+}
+.tt-idle-countdown-label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+  text-align: right;
+}
+
+
+/* ===== SOUND & CELEBRATION MODULE — Styles ===== */
+#soundControls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sound-button {
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.25rem 0.45rem;
+  line-height: 1;
+  transition: all var(--transition);
+  font-family: var(--mono);
+}
+.sound-button:hover { color: var(--text); border-color: #555; }
+.sound-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#soundVolume {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 64px;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 10px;
+  outline: none;
+  cursor: pointer;
+}
+#soundVolume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+#soundVolume::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
+#confettiCanvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+#tt-celebration-announce {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -1014,6 +1216,61 @@ td {
   </div>
 </div>
 
+
+<!-- Idle check modal -->
+<div id="tt-idle-modal" role="dialog" aria-modal="true" aria-labelledby="tt-idle-title">
+  <div class="tt-idle-box">
+    <div class="tt-idle-icon">⏸</div>
+    <div class="tt-idle-title" id="tt-idle-title">Still working?</div>
+    <div class="tt-idle-subtitle" id="tt-idle-subtitle">
+      No activity detected for <span class="tt-idle-elapsed" id="tt-idle-elapsed">10 minutes</span>.
+      What were you doing?
+    </div>
+    <div class="tt-idle-options">
+
+      <!-- Option 1: Keep running -->
+      <button class="tt-idle-option keep" id="tt-idle-keep" aria-label="Yes, keep session running">
+        <span class="tt-idle-opt-icon">✅</span>
+        <div>
+          <div class="tt-idle-opt-label">Yes, keep going</div>
+          <div class="tt-idle-opt-desc">I was working — continue the session as-is.</div>
+        </div>
+      </button>
+
+      <!-- Option 2: Was in a meeting -->
+      <button class="tt-idle-option meeting" id="tt-idle-meeting" aria-label="I was in a meeting">
+        <span class="tt-idle-opt-icon">📅</span>
+        <div style="flex:1">
+          <div class="tt-idle-opt-label">I was in a meeting</div>
+          <div class="tt-idle-opt-desc">Log the away time as part of this session.</div>
+          <input class="tt-idle-meeting-input" id="tt-idle-meeting-note"
+            type="text" placeholder="Optional note (e.g. Zoom standup)" maxlength="100">
+        </div>
+      </button>
+
+      <!-- Option 3: Stop now -->
+      <button class="tt-idle-option stop" id="tt-idle-stop" aria-label="Stop the session now">
+        <span class="tt-idle-opt-icon">■</span>
+        <div>
+          <div class="tt-idle-opt-label">Stop now</div>
+          <div class="tt-idle-opt-desc" id="tt-idle-stop-desc">End the session at the last activity time.</div>
+        </div>
+      </button>
+
+    </div>
+
+    <!-- Auto-dismiss countdown bar -->
+    <div class="tt-idle-countdown-bar">
+      <div class="tt-idle-countdown-fill" id="tt-idle-bar" style="width:100%"></div>
+    </div>
+    <div class="tt-idle-countdown-label">Auto-stopping in <span id="tt-idle-bar-label">60s</span></div>
+  </div>
+</div>
+
+
+<!-- Sound & Celebration: aria-live + confetti canvas -->
+<div id="tt-celebration-announce" aria-live="assertive" aria-atomic="true"></div>
+<canvas id="confettiCanvas" aria-hidden="true"></canvas>
 <!-- ═══════════ HEADER ═══════════ -->
 <header class="app-header" role="banner">
   <div class="logo">Time<span>Tracker</span></div>
@@ -2969,11 +3226,133 @@ function stopIdleTracking() {
 }
 
 /** Called when idle timer fires — auto-stops session and shows undo banner */
+// ── Idle modal state ─────────────────────────────────────────────────
+let _idleModalCountdown = null;
+let _idleDetectedAt    = null; // timestamp when idle fired
+const IDLE_AUTO_DISMISS_S = 60; // auto-stop if user ignores modal
+
 function onIdleDetected() {
   const active = Sessions.getActive();
   if (!active) return;
+  _idleDetectedAt = Date.now();
+  showIdleModal(active);
+}
 
-  // Auto-stop: mark with idle reason (stored in memory only, not schema)
+/** Show the "Still working?" modal */
+function showIdleModal(session) {
+  const modal    = document.getElementById('tt-idle-modal');
+  const elapsed  = document.getElementById('tt-idle-elapsed');
+  const stopDesc = document.getElementById('tt-idle-stop-desc');
+  const bar      = document.getElementById('tt-idle-bar');
+  const barLabel = document.getElementById('tt-idle-bar-label');
+  const noteInput= document.getElementById('tt-idle-meeting-note');
+  if (!modal) return;
+
+  // Show how long they were idle
+  const idleMins = Math.round(CONFIG.idleMs / 60000);
+  elapsed.textContent = `${idleMins} minute${idleMins !== 1 ? 's' : ''}`;
+
+  // Stop desc shows what time session would end at
+  const lastActiveTime = formatLocalDate(new Date(Date.now() - CONFIG.idleMs).toISOString());
+  stopDesc.textContent = `End the session at last activity (~${lastActiveTime}).`;
+
+  // Reset meeting note input
+  noteInput.value = '';
+  noteInput.classList.remove('visible');
+
+  modal.classList.add('visible');
+
+  // Countdown bar — auto-dismiss after IDLE_AUTO_DISMISS_S
+  let remaining = IDLE_AUTO_DISMISS_S;
+  bar.style.width = '100%';
+  barLabel.textContent = `${remaining}s`;
+
+  clearInterval(_idleModalCountdown);
+  _idleModalCountdown = setInterval(() => {
+    remaining--;
+    const pct = (remaining / IDLE_AUTO_DISMISS_S) * 100;
+    bar.style.width = pct + '%';
+    barLabel.textContent = `${remaining}s`;
+    if (remaining <= 0) {
+      clearInterval(_idleModalCountdown);
+      // Auto-stop — user ignored the modal
+      hideIdleModal();
+      performAutoStop(session, false);
+    }
+  }, 1000);
+
+  // ── Option 1: Keep going ──────────────────────────────────────────
+  const keepBtn = document.getElementById('tt-idle-keep');
+  const newKeep = keepBtn.cloneNode(true);
+  keepBtn.parentNode.replaceChild(newKeep, keepBtn);
+  newKeep.addEventListener('click', () => {
+    clearInterval(_idleModalCountdown);
+    hideIdleModal();
+    // Reset idle timer — user confirmed still working
+    resetIdleTimer();
+    Toast.show('Got it — session continues!');
+  });
+
+  // ── Option 2: Was in a meeting ────────────────────────────────────
+  const meetBtn  = document.getElementById('tt-idle-meeting');
+  const noteEl   = document.getElementById('tt-idle-meeting-note');
+  const newMeet  = meetBtn.cloneNode(true);
+  meetBtn.parentNode.replaceChild(newMeet, meetBtn);
+
+  // Show note input on first click, confirm on second
+  let meetingClickCount = 0;
+  newMeet.addEventListener('click', (e) => {
+    if (e.target === noteEl) return; // don't trigger on input click
+    meetingClickCount++;
+    const noteInput2 = newMeet.querySelector('.tt-idle-meeting-input');
+    if (meetingClickCount === 1) {
+      // First click — show the note input
+      noteInput2.classList.add('visible');
+      noteInput2.focus();
+      newMeet.querySelector('.tt-idle-opt-desc').textContent = 'Add a note (optional), then click again to confirm.';
+    } else {
+      // Second click — log as meeting and keep session running
+      clearInterval(_idleModalCountdown);
+      hideIdleModal();
+      const note = noteInput2.value.trim();
+      // Append meeting note to session notes
+      const all = Sessions.all();
+      const idx = all.findIndex(s => s.id === session.id);
+      if (idx !== -1) {
+        const existing = all[idx].notes || '';
+        all[idx].notes = existing
+          ? `${existing} | Meeting: ${note || 'in meeting'}`
+          : `Meeting: ${note || 'in meeting'}`;
+        Sessions.replaceAll(all);
+        saveSessionToIndexedDB(all[idx]);
+      }
+      // Reset idle timer — session keeps running
+      resetIdleTimer();
+      Render.all();
+      Toast.show(`Meeting logged${note ? ': ' + note : ''} — session continues.`);
+    }
+  });
+
+  // ── Option 3: Stop now ────────────────────────────────────────────
+  const stopBtn = document.getElementById('tt-idle-stop');
+  const newStop = stopBtn.cloneNode(true);
+  stopBtn.parentNode.replaceChild(newStop, stopBtn);
+  newStop.addEventListener('click', () => {
+    clearInterval(_idleModalCountdown);
+    hideIdleModal();
+    performAutoStop(session, true);
+  });
+}
+
+function hideIdleModal() {
+  document.getElementById('tt-idle-modal')?.classList.remove('visible');
+  clearInterval(_idleModalCountdown);
+}
+
+/** Actually stop the session (used by auto-dismiss and Stop button) */
+function performAutoStop(session, userChose) {
+  const active = Sessions.getActive();
+  if (!active) return;
   _autoStoppedSession = { ...active };
   const stopped = Sessions.stop();
   if (stopped) {
@@ -2984,7 +3363,10 @@ function onIdleDetected() {
     UI.setIdle();
     Render.all();
     showUndoBanner(stopped);
-    Toast.show('Auto-stopped due to inactivity.', 'warn', 5000);
+    const msg = userChose
+      ? 'Session stopped.'
+      : 'Auto-stopped — no response to idle check.';
+    Toast.show(msg, 'warn', 4000);
   }
 }
 
@@ -3402,6 +3784,348 @@ document.addEventListener('DOMContentLoaded', () => {
    window.__tt exposes internals for verification
 ═══════════════════════════════════════════════════════ */
 window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, recomputeAnalytics, seedTestData };
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ===== SOUND & CELEBRATION MODULE =====
+   Integration points:
+     • Start button  → playStartSound()   (auto-wired below)
+     • Stop button   → playStopSound()    (auto-wired below)
+     • Idle detection → call window.TimeTrackerSoundModule.playIdleReminder()
+       inside onIdleDetected() or showIdleModal() when idle fires.
+     • Any module    → window.TimeTrackerSoundModule.confetti(ms, count)
+═══════════════════════════════════════════════════════════════════════ */
+
+(function () {
+  'use strict';
+
+  // ── Prefs ────────────────────────────────────────────────────────────
+  const PREFS_KEY = 'timetracker_sound_prefs';
+  let soundEnabled = true;
+  let volume       = 0.4;
+
+  function loadSoundPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+      if (typeof p.enabled === 'boolean') soundEnabled = p.enabled;
+      if (typeof p.volume  === 'number')  volume       = Math.min(1, Math.max(0, p.volume));
+    } catch {}
+  }
+
+  function saveSoundPrefs() {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ enabled: soundEnabled, volume })); } catch {}
+  }
+
+  // ── AudioContext (lazy init on first gesture) ────────────────────────
+  let audioCtx   = null;
+  let masterGain = null;
+  let audioReady = false;
+
+  function ensureAudioContext() {
+    if (audioReady) return true;
+    try {
+      audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = volume;
+      masterGain.connect(audioCtx.destination);
+      audioReady = true;
+      return true;
+    } catch (e) {
+      console.warn('[Sound] AudioContext unavailable:', e.message);
+      soundEnabled = false;
+      return false;
+    }
+  }
+
+  // Resume if suspended (browser autoplay policy)
+  function resumeCtx() {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(() => {});
+    }
+  }
+
+  // ── Low-level tone generator ─────────────────────────────────────────
+  /**
+   * playTone(freq, duration, type, startOffset, gainVal)
+   * freq        — Hz
+   * duration    — seconds
+   * type        — OscillatorType ('sine'|'square'|'triangle'|'sawtooth')
+   * startOffset — seconds from now (for sequencing)
+   * gainVal     — 0–1 local gain multiplier
+   */
+  function playTone(freq, duration, type, startOffset, gainVal) {
+    if (!audioReady || !soundEnabled) return;
+    resumeCtx();
+    try {
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type      = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.value = gainVal != null ? gainVal : 0.6;
+
+      // Fade out to avoid click
+      const t = audioCtx.currentTime + (startOffset || 0);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(t);
+      osc.stop(t + duration + 0.01);
+    } catch (e) { console.warn('[Sound] playTone error:', e); }
+  }
+
+  // ── Composed sounds ──────────────────────────────────────────────────
+
+  /** Start — two quick upbeat pips (C5 → E5) */
+  function playStartSound() {
+    if (!ensureAudioContext() || !soundEnabled) return;
+    playTone(523, 0.10, 'triangle', 0,    0.5); // C5
+    playTone(659, 0.14, 'triangle', 0.11, 0.6); // E5
+  }
+
+  /** Stop — descending chime (E5 → C5 → G4) then confetti */
+  function playStopSound() {
+    if (!ensureAudioContext() || !soundEnabled) return;
+    playTone(659, 0.12, 'sine', 0,    0.55); // E5
+    playTone(523, 0.12, 'sine', 0.13, 0.5);  // C5
+    playTone(392, 0.22, 'sine', 0.26, 0.45); // G4
+    // Confetti triggered by caller after this returns
+  }
+
+  /** Idle reminder — three short beeps (A4 × 3) */
+  function playIdleReminder() {
+    if (!ensureAudioContext() || !soundEnabled) return;
+    [0, 0.18, 0.36].forEach(offset => playTone(440, 0.10, 'square', offset, 0.3));
+  }
+
+  // ── Confetti ─────────────────────────────────────────────────────────
+  let confettiRAF = null;
+
+  /** Create/reuse confetti canvas */
+  function createConfettiCanvas() {
+    return document.getElementById('confettiCanvas');
+  }
+
+  /**
+   * runConfetti(durationMs, count)
+   * Lightweight particle system — no external libs.
+   */
+  function runConfetti(durationMs, count) {
+    // Respect prefers-reduced-motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const canvas = createConfettiCanvas();
+    if (!canvas) return;
+    const ctx    = canvas.getContext('2d');
+    const W      = canvas.width  = window.innerWidth;
+    const H      = canvas.height = window.innerHeight;
+    const dur    = durationMs || 1500;
+    const n      = count || 100;
+
+    const COLORS = ['#00ff88','#ffaa00','#ff3b3b','#4488ff','#cc00ff','#ffffff'];
+
+    // Build particles
+    const particles = Array.from({ length: n }, () => ({
+      x:    Math.random() * W,
+      y:    Math.random() * H * 0.4 - 20,
+      vx:   (Math.random() - 0.5) * 4,
+      vy:   Math.random() * 3 + 1,
+      rot:  Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.2,
+      w:    6 + Math.random() * 6,
+      h:    3 + Math.random() * 4,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      alpha: 1
+    }));
+
+    const startTime = performance.now();
+
+    function frame(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / dur, 1);
+      ctx.clearRect(0, 0, W, H);
+
+      particles.forEach(p => {
+        p.x   += p.vx;
+        p.y   += p.vy;
+        p.vy  += 0.06; // gravity
+        p.rot += p.rotV;
+        p.alpha = 1 - progress;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+
+      if (progress < 1) {
+        confettiRAF = requestAnimationFrame(frame);
+      } else {
+        ctx.clearRect(0, 0, W, H);
+        confettiRAF = null;
+      }
+    }
+
+    if (confettiRAF) cancelAnimationFrame(confettiRAF);
+    confettiRAF = requestAnimationFrame(frame);
+  }
+
+  // ── Sound Controls UI ────────────────────────────────────────────────
+
+  function createSoundControls() {
+    const wrap = document.createElement('div');
+    wrap.id = 'soundControls';
+    wrap.setAttribute('aria-label', 'Sound controls');
+
+    // Mute toggle
+    const muteBtn = document.createElement('button');
+    muteBtn.className  = 'sound-button';
+    muteBtn.id         = 'soundMuteBtn';
+    muteBtn.title      = 'Toggle sound';
+    muteBtn.setAttribute('aria-pressed', !soundEnabled);
+    muteBtn.textContent = soundEnabled ? '🔊' : '🔈';
+
+    muteBtn.addEventListener('click', () => {
+      ensureAudioContext();
+      soundEnabled = !soundEnabled;
+      muteBtn.textContent = soundEnabled ? '🔊' : '🔈';
+      muteBtn.setAttribute('aria-pressed', !soundEnabled);
+      saveSoundPrefs();
+    });
+
+    // Volume slider
+    const slider = document.createElement('input');
+    slider.type  = 'range';
+    slider.id    = 'soundVolume';
+    slider.min   = '0';
+    slider.max   = '1';
+    slider.step  = '0.05';
+    slider.value = String(volume);
+    slider.setAttribute('aria-label', 'Sound volume');
+    slider.title = 'Volume';
+
+    slider.addEventListener('input', () => {
+      ensureAudioContext();
+      volume = parseFloat(slider.value);
+      if (masterGain) masterGain.gain.value = volume;
+      saveSoundPrefs();
+    });
+
+    wrap.appendChild(muteBtn);
+    wrap.appendChild(slider);
+
+    // Attach near Start button, or fallback to tracker-controls div
+    const startBtn = document.getElementById('btn-start');
+    const parent   = startBtn ? startBtn.closest('.tracker-controls') : null;
+    if (parent) {
+      parent.appendChild(wrap);
+    } else {
+      // Fallback: fixed top-right
+      wrap.style.cssText = 'position:fixed;top:12px;right:12px;z-index:500;background:var(--surface);padding:4px 8px;border-radius:4px;border:1px solid var(--border)';
+      document.body.appendChild(wrap);
+    }
+  }
+
+  // ── Wire to existing Start/Stop buttons ──────────────────────────────
+
+  function attachButtonListeners() {
+    // IDs confirmed: btn-start, btn-stop
+    // Using addEventListener so we never replace existing handlers.
+    const startBtn = document.getElementById('btn-start');
+    const stopBtn  = document.getElementById('btn-stop');
+
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        ensureAudioContext();
+        playStartSound();
+      });
+    } else {
+      console.warn('[Sound] btn-start not found — falling back to text search');
+      document.querySelectorAll('button').forEach(b => {
+        if (/start/i.test(b.textContent)) b.addEventListener('click', playStartSound);
+      });
+    }
+
+    if (stopBtn) {
+      stopBtn.addEventListener('click', () => {
+        ensureAudioContext();
+        playStopSound();
+        runConfetti(1500, 100);
+        // Aria-live announcement for screen readers
+        const announce = document.getElementById('tt-celebration-announce');
+        if (announce) {
+          announce.textContent = '';
+          requestAnimationFrame(() => {
+            announce.textContent = 'Session stopped. Well done!';
+          });
+        }
+      });
+    } else {
+      console.warn('[Sound] btn-stop not found — falling back to text search');
+      document.querySelectorAll('button').forEach(b => {
+        if (/stop/i.test(b.textContent)) b.addEventListener('click', () => { playStopSound(); runConfetti(1500, 100); });
+      });
+    }
+
+    // Initialize AudioContext on any keydown too (handles keyboard shortcuts S/E)
+    document.addEventListener('keydown', () => ensureAudioContext(), { once: true });
+  }
+
+  // ── Main init ────────────────────────────────────────────────────────
+
+  function initSoundAndConfettiModule() {
+    loadSoundPrefs();
+    createSoundControls();
+    attachButtonListeners();
+  }
+
+  // ── Expose public API ────────────────────────────────────────────────
+  window.TimeTrackerSoundModule = {
+    playStart:       playStartSound,
+    playStop:        playStopSound,
+    playIdleReminder: playIdleReminder,
+    confetti:        runConfetti,
+    enableSound:     function(val) { soundEnabled = !!val; saveSoundPrefs(); },
+    setVolume:       function(v)   { volume = Math.min(1, Math.max(0, v)); if (masterGain) masterGain.gain.value = volume; saveSoundPrefs(); }
+  };
+
+  // ── Boot ─────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', initSoundAndConfettiModule);
+
+  /*
+  ═══════════════════════════════════════════════════════
+    6-STEP TEST PLAN
+  ═══════════════════════════════════════════════════════
+    1. Click Start  → hear two upbeat pips (C5 → E5)
+    2. Click Stop   → hear descending chime + confetti rains down
+                      screen readers hear "Session stopped. Well done!"
+    3. In console:  window.TimeTrackerSoundModule.playIdleReminder()
+                    → hear three short beeps (A4 × 3)
+    4. Click 🔊 (mute toggle) → icon becomes 🔈
+                    click Start/Stop → silence
+    5. Drag volume slider to 0.2 → sounds quieter
+                    drag to 0.8  → sounds louder
+    6. In DevTools: Emulate prefers-reduced-motion (reduce)
+                    click Stop  → sound plays but NO confetti
+
+  QUICK VERIFICATION SNIPPET (paste in console):
+  ═══════════════════════════════════════════════════════
+  */
+
+})(); // end SOUND & CELEBRATION MODULE
+
+/*
+  // Quick test — paste in browser console:
+  window.TimeTrackerSoundModule.playStart();
+  window.TimeTrackerSoundModule.playStop();
+  window.TimeTrackerSoundModule.playIdleReminder();
+  window.TimeTrackerSoundModule.confetti(1500, 80);
+  window.TimeTrackerSoundModule.setVolume(0.8);
+*/
 
 </script>
 </body>
