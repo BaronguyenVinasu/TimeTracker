@@ -614,6 +614,59 @@ td {
 }
 
 /* ═══════════════════════════════════════════════════════
+   PERSISTENCE & IDLE MODULE — Banner Styles
+═══════════════════════════════════════════════════════ */
+
+.tt-banner {
+  display: none;
+  position: sticky;
+  top: 52px;
+  z-index: 200;
+  padding: 0.6rem 1.5rem;
+  font-size: 0.78rem;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid transparent;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tt-banner.visible { display: flex; }
+.tt-banner-recovery { background: #0d1f2d; border-color: #2255aa; color: #88bbff; }
+.tt-banner-undo     { background: #1a1200; border-color: var(--warn); color: var(--warn); }
+.tt-banner-msg      { flex: 1; }
+.tt-banner-msg strong { color: var(--text); }
+.tt-banner-actions  { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.tt-banner-btn {
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  transition: all var(--transition);
+}
+.tt-banner-btn:hover { background: rgba(255,255,255,0.08); }
+.tt-banner-btn.primary { background: #2255aa; color: #fff; border-color: #2255aa; }
+.tt-banner-btn.primary:hover { background: #1a4488; }
+.tt-banner-btn.warn { background: var(--warn); color: #000; border-color: var(--warn); }
+.tt-undo-countdown  { font-size: 0.65rem; opacity: 0.7; min-width: 30px; }
+
+#tt-sync-status { font-size: 0.65rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+#tt-sync-status.saved   { color: var(--accent-dim); }
+#tt-sync-status.syncing { color: var(--warn); }
+.suspicious-warn { color: var(--warn); font-size: 0.65rem; margin-left: 3px; cursor: help; }
+
+/* ═══════════════════════════════════════════════════════
    NEW PANELS — Analytics, Goals, Streaks, Firebase
    Added additively below existing layout
 ═══════════════════════════════════════════════════════ */
@@ -941,9 +994,30 @@ td {
   ⚠ localStorage unavailable (private/incognito mode). Sessions are in-memory only and won't persist across reloads. Export CSV to save your data.
 </div>
 
+<!-- Recovery banner -->
+<div class="tt-banner tt-banner-recovery" id="tt-recovery-banner" role="alert" aria-live="assertive">
+  <div class="tt-banner-msg" id="tt-recovery-msg">Found a running session.</div>
+  <div class="tt-banner-actions">
+    <button class="tt-banner-btn primary" id="tt-recovery-resume">▶ Resume</button>
+    <button class="tt-banner-btn" id="tt-recovery-end">■ End Now</button>
+    <button class="tt-banner-btn" id="tt-recovery-edit">✎ Edit</button>
+    <button class="tt-banner-btn" id="tt-recovery-dismiss" style="opacity:0.5">✕</button>
+  </div>
+</div>
+
+<!-- Undo auto-stop banner -->
+<div class="tt-banner tt-banner-undo" id="tt-undo-banner" role="alert" aria-live="assertive">
+  <div class="tt-banner-msg" id="tt-undo-msg">Session auto-stopped due to inactivity.</div>
+  <div class="tt-banner-actions">
+    <button class="tt-banner-btn warn" id="tt-undo-btn">↩ Undo</button>
+    <span class="tt-undo-countdown" id="tt-undo-countdown">20s</span>
+  </div>
+</div>
+
 <!-- ═══════════ HEADER ═══════════ -->
 <header class="app-header" role="banner">
   <div class="logo">Time<span>Tracker</span></div>
+  <div id="tt-sync-status" aria-live="polite">● Local</div>
   <div class="header-right">
     <span><kbd class="kbd">S</kbd> Start</span>
     <span><kbd class="kbd">E</kbd> End</span>
@@ -2708,12 +2782,619 @@ function seedTestData(weeks = 8) {
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ===== PERSISTENCE & IDLE MODULE =====
+   Adds: IndexedDB storage · autosave · idle detection · recovery banner
+         undo auto-stop · pagehide flush · suspicious session cap
+═══════════════════════════════════════════════════════════════════════ */
+
+// ── Feature config — tune these constants at any time ──────────────────
+const CONFIG = {
+  autosaveMs:     15000,   // autosave draft every 15s
+  idleMs:         600000,  // idle timeout: 10 minutes
+  undoMs:         20000,   // undo window after auto-stop: 20s
+  maxSessionHours: 12,     // flag sessions longer than this
+  devMode:        false,   // set true to show Seed button
+};
+
+// ===== IDB WRAPPER =====
+// Minimal promise-based IndexedDB helper. No external libs.
+const IDB = (() => {
+  const DB_NAME    = 'timetracker_db';
+  const DB_VERSION = 1;
+  const STORE      = 'kv'; // single key-value store
+  let _db = null;
+
+  function idbOpen() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = e => {
+        e.target.result.createObjectStore(STORE);
+      };
+      req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+      req.onerror   = e => reject(e.target.error);
+    });
+  }
+
+  function idbPut(key, value) {
+    return idbOpen().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = resolve;
+      tx.onerror    = e => reject(e.target.error);
+    }));
+  }
+
+  function idbGet(key) {
+    return idbOpen().then(db => new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+      req.onsuccess = e => resolve(e.target.result ?? null);
+      req.onerror   = e => reject(e.target.error);
+    }));
+  }
+
+  function idbDelete(key) {
+    return idbOpen().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = resolve;
+      tx.onerror    = e => reject(e.target.error);
+    }));
+  }
+
+  function idbGetAll() {
+    return idbOpen().then(db => new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    }));
+  }
+
+  function idbGetAllKeys() {
+    return idbOpen().then(db => new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).getAllKeys();
+      req.onsuccess = e => resolve(e.target.result);
+      req.onerror   = e => reject(e.target.error);
+    }));
+  }
+
+  return { idbOpen, idbPut, idbGet, idbDelete, idbGetAll, idbGetAllKeys };
+})();
+
+// ===== AUTOSAVE & IDLE =====
+
+const SESSIONS_IDB_KEY = 'timetracker_sessions_v1';
+const DRAFT_IDB_KEY    = 'timetracker_active_draft_v1';
+
+// In-memory active session reference for fast UI access
+let _activeSessionCache = null;
+let _autosaveTimer      = null;
+let _idleTimer          = null;
+let _autoStoppedSession = null; // holds session for undo
+let _undoTimer          = null;
+let _undoCountdownTimer = null;
+
+/** Format ISO string to locale time for UI */
+function formatLocalDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+/** Save one session to IndexedDB (non-blocking via requestIdleCallback) */
+function saveSessionToIndexedDB(session) {
+  const write = () => IDB.idbPut(`session_${session.id}`, session).catch(console.warn);
+  if (window.requestIdleCallback) requestIdleCallback(write);
+  else setTimeout(write, 0);
+}
+
+/** Load all sessions from IndexedDB */
+async function loadAllSessionsFromIndexedDB() {
+  try {
+    const keys = await IDB.idbGetAllKeys();
+    const sessionKeys = keys.filter(k => String(k).startsWith('session_'));
+    const items = await Promise.all(sessionKeys.map(k => IDB.idbGet(k)));
+    return items.filter(Boolean);
+  } catch (e) { console.warn('IDB load error', e); return []; }
+}
+
+/** Persist active draft to IndexedDB with updatedAt timestamp */
+async function saveActiveDraft(session) {
+  if (!session) return;
+  _activeSessionCache = session;
+  const draft = { ...session, updatedAt: new Date().toISOString() };
+  try {
+    await IDB.idbPut(DRAFT_IDB_KEY, draft);
+    setSyncStatus('saved');
+  } catch (e) { console.warn('Draft save error', e); }
+}
+
+/** Load active draft from IndexedDB */
+async function loadActiveDraft() {
+  try { return await IDB.idbGet(DRAFT_IDB_KEY); }
+  catch { return null; }
+}
+
+/** Clear active draft (after user resolves recovery) */
+async function clearActiveDraft() {
+  _activeSessionCache = null;
+  try { await IDB.idbDelete(DRAFT_IDB_KEY); } catch {}
+}
+
+/** Start autosave loop — saves running session every CONFIG.autosaveMs */
+function startAutosaveLoop() {
+  stopAutosaveLoop();
+  _autosaveTimer = setInterval(() => {
+    const active = Sessions.getActive();
+    if (active) {
+      saveActiveDraft(active);
+      // Also write full sessions list to IDB as backup
+      const write = () => IDB.idbPut(SESSIONS_IDB_KEY, Sessions.all()).catch(console.warn);
+      if (window.requestIdleCallback) requestIdleCallback(write);
+      else setTimeout(write, 0);
+    }
+  }, CONFIG.autosaveMs);
+}
+
+/** Stop autosave loop */
+function stopAutosaveLoop() {
+  if (_autosaveTimer) { clearInterval(_autosaveTimer); _autosaveTimer = null; }
+}
+
+// ── Idle detection ────────────────────────────────────────────────────
+
+const IDLE_EVENTS = ['mousemove','mousedown','keydown','scroll','touchstart'];
+
+function resetIdleTimer() {
+  if (!Sessions.getActive()) return; // only track when running
+  clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(onIdleDetected, CONFIG.idleMs);
+}
+
+function startIdleTracking() {
+  IDLE_EVENTS.forEach(ev => window.addEventListener(ev, resetIdleTimer, { passive: true }));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) resetIdleTimer();
+  });
+  resetIdleTimer();
+}
+
+function stopIdleTracking() {
+  IDLE_EVENTS.forEach(ev => window.removeEventListener(ev, resetIdleTimer));
+  clearTimeout(_idleTimer);
+}
+
+/** Called when idle timer fires — auto-stops session and shows undo banner */
+function onIdleDetected() {
+  const active = Sessions.getActive();
+  if (!active) return;
+
+  // Auto-stop: mark with idle reason (stored in memory only, not schema)
+  _autoStoppedSession = { ...active };
+  const stopped = Sessions.stop();
+  if (stopped) {
+    stopAutosaveLoop();
+    stopIdleTracking();
+    clearActiveDraft();
+    Timer.stop();
+    UI.setIdle();
+    Render.all();
+    showUndoBanner(stopped);
+    Toast.show('Auto-stopped due to inactivity.', 'warn', 5000);
+  }
+}
+
+// ── Undo banner ───────────────────────────────────────────────────────
+
+function showUndoBanner(stoppedSession) {
+  const banner    = document.getElementById('tt-undo-banner');
+  const msg       = document.getElementById('tt-undo-msg');
+  const undoBtn   = document.getElementById('tt-undo-btn');
+  const countdown = document.getElementById('tt-undo-countdown');
+  if (!banner) return;
+
+  msg.innerHTML = `Auto-stopped: <strong>${stoppedSession.project || 'session'}</strong> (${formatLocalDate(stoppedSession.startISO)})`;
+  banner.classList.add('visible');
+
+  let remaining = Math.round(CONFIG.undoMs / 1000);
+  countdown.textContent = `${remaining}s`;
+
+  clearInterval(_undoCountdownTimer);
+  _undoCountdownTimer = setInterval(() => {
+    remaining--;
+    countdown.textContent = `${remaining}s`;
+    if (remaining <= 0) {
+      clearInterval(_undoCountdownTimer);
+      hideUndoBanner();
+    }
+  }, 1000);
+
+  clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(hideUndoBanner, CONFIG.undoMs);
+
+  // Wire undo button (replace listener each time)
+  const newBtn = undoBtn.cloneNode(true);
+  undoBtn.parentNode.replaceChild(newBtn, undoBtn);
+  newBtn.addEventListener('click', () => {
+    clearTimeout(_undoTimer);
+    clearInterval(_undoCountdownTimer);
+    hideUndoBanner();
+    undoAutoStop(stoppedSession);
+  });
+}
+
+function hideUndoBanner() {
+  document.getElementById('tt-undo-banner')?.classList.remove('visible');
+  _autoStoppedSession = null;
+}
+
+/** Undo auto-stop: re-open the session by clearing its endISO */
+function undoAutoStop(session) {
+  const all = Sessions.all();
+  const idx = all.findIndex(s => s.id === session.id);
+  if (idx === -1) { Toast.show('Cannot undo — session not found.', 'error'); return; }
+  all[idx].endISO       = null;
+  all[idx].durationMins = null;
+  all[idx].updatedAt    = new Date().toISOString();
+  Sessions.replaceAll(all);
+  saveActiveDraft(all[idx]);
+  startAutosaveLoop();
+  startIdleTracking();
+  Timer.start();
+  UI.setRunning();
+  Render.all();
+  Toast.show('Session resumed.', 'info');
+}
+
+// ── Recovery banner ───────────────────────────────────────────────────
+
+function showRecoveryBanner(draft) {
+  const banner  = document.getElementById('tt-recovery-banner');
+  const msg     = document.getElementById('tt-recovery-msg');
+  if (!banner || !msg) return;
+
+  const startedAt  = formatLocalDate(draft.startISO);
+  const savedAt    = draft.updatedAt ? formatLocalDate(draft.updatedAt) : null;
+  const ageHours   = (Date.now() - new Date(draft.startISO)) / 3600000;
+  const isOld      = ageHours > 24;
+  const isVeryOld  = ageHours > 72;
+
+  let msgText = `Found a running session started at <strong>${startedAt}</strong>`;
+  if (savedAt) msgText += ` · last saved <strong>${savedAt}</strong>`;
+  if (isVeryOld) msgText += ` <span style="color:var(--warn)">· This session looks very old — please confirm end time.</span>`;
+  msg.innerHTML = msgText;
+
+  // Show/hide End button label based on age
+  const endBtn = document.getElementById('tt-recovery-end');
+  if (endBtn && isOld) endBtn.textContent = '■ End at last save';
+
+  banner.classList.add('visible');
+
+  // Resume
+  document.getElementById('tt-recovery-resume').onclick = () => {
+    hideRecoveryBanner();
+    // Ensure draft is in sessions list
+    const existing = Sessions.all().find(s => s.id === draft.id);
+    if (!existing) {
+      const all = Sessions.all();
+      all.unshift({ ...draft, endISO: null, durationMins: null });
+      Sessions.replaceAll(all);
+    } else {
+      // Re-open if it was closed
+      const all = Sessions.all();
+      const idx = all.findIndex(s => s.id === draft.id);
+      if (idx !== -1) { all[idx].endISO = null; all[idx].durationMins = null; Sessions.replaceAll(all); }
+    }
+    saveActiveDraft(Sessions.getActive() || draft);
+    startAutosaveLoop();
+    startIdleTracking();
+    Timer.start();
+    UI.setRunning();
+    Render.all();
+    Toast.show('Session resumed.');
+  };
+
+  // End now
+  document.getElementById('tt-recovery-end').onclick = () => {
+    hideRecoveryBanner();
+    // If old draft, end at updatedAt (last autosave), else now
+    const endTime = isOld && draft.updatedAt ? draft.updatedAt : new Date().toISOString();
+    const all = Sessions.all();
+    let idx = all.findIndex(s => s.id === draft.id);
+    if (idx === -1) { all.unshift({ ...draft }); idx = 0; Sessions.replaceAll(all); }
+    const session = Sessions.all()[idx];
+    if (!session.endISO) {
+      Sessions.all()[idx].endISO = endTime;
+      Sessions.all()[idx].durationMins = Sessions.computeDuration(draft.startISO, endTime);
+      Sessions.replaceAll(Sessions.all());
+    }
+    clearActiveDraft();
+    Render.all();
+    Toast.show('Session ended.');
+  };
+
+  // Edit — pre-fill modal with draft data
+  document.getElementById('tt-recovery-edit').onclick = () => {
+    hideRecoveryBanner();
+    // Pre-fill project/notes inputs at top
+    const projInput = document.getElementById('input-project');
+    const noteInput = document.getElementById('input-notes');
+    if (projInput) projInput.value = draft.project || '';
+    if (noteInput) noteInput.value = draft.notes   || '';
+    Toast.show('Draft loaded into inputs — edit and start a new session, or use the sessions table to edit.', 'info', 6000);
+    clearActiveDraft();
+  };
+
+  // Dismiss
+  document.getElementById('tt-recovery-dismiss').onclick = () => {
+    if (confirm('Discard this draft session?')) {
+      hideRecoveryBanner();
+      clearActiveDraft();
+      Toast.show('Draft discarded.');
+    }
+  };
+}
+
+function hideRecoveryBanner() {
+  document.getElementById('tt-recovery-banner')?.classList.remove('visible');
+}
+
+// ── Suspicious session cap ─────────────────────────────────────────────
+
+/** Flag sessions longer than CONFIG.maxSessionHours in the sessions table */
+function checkSuspiciousSessions() {
+  const maxMs = CONFIG.maxSessionHours * 3600000;
+  Sessions.all().forEach(s => {
+    if (!s.endISO) return;
+    const dur = new Date(s.endISO) - new Date(s.startISO);
+    if (dur > maxMs && !s.suspicious) {
+      // Mark suspicious in memory (not stored to keep schema clean)
+      s._suspicious = true;
+    }
+  });
+}
+
+// ── Sync status indicator ─────────────────────────────────────────────
+
+function setSyncStatus(state) {
+  const el = document.getElementById('tt-sync-status');
+  if (!el) return;
+  if (state === 'saved') {
+    el.textContent = '● Local'; el.className = 'saved';
+  } else if (state === 'syncing') {
+    el.textContent = '⟳ Syncing…'; el.className = 'syncing';
+  } else if (state === 'cloud') {
+    el.textContent = '● Cloud'; el.className = 'saved';
+  } else {
+    el.textContent = '● Local'; el.className = '';
+  }
+}
+
+// ── pagehide / visibilitychange flush ─────────────────────────────────
+
+function flushBeforeUnload() {
+  const active = Sessions.getActive();
+  if (!active) return;
+
+  // Synchronously persist draft (best-effort)
+  IDB.idbPut(DRAFT_IDB_KEY, { ...active, updatedAt: new Date().toISOString() }).catch(() => {});
+
+  // sendBeacon for last-ditch server save (no-op if no backend)
+  if (navigator.sendBeacon) {
+    try {
+      const payload = JSON.stringify({ session: active, ts: new Date().toISOString() });
+      navigator.sendBeacon('/save-active-session', payload);
+    } catch { /* no backend — expected */ }
+  }
+}
+
+window.addEventListener('pagehide', flushBeforeUnload);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushBeforeUnload();
+});
+
+// ===== RECOVERY & UI =====
+
+/** Called on app load — checks IndexedDB for active draft and handles recovery */
+async function handleRecoveryIfNeeded() {
+  const draft = await loadActiveDraft();
+  if (!draft || draft.endISO) { await clearActiveDraft(); return; }
+
+  // Check if it's already the active session in memory
+  const active = Sessions.getActive();
+  if (active && active.id === draft.id) {
+    // Already running — just update autosave
+    saveActiveDraft(active);
+    return;
+  }
+
+  // Show recovery banner
+  showRecoveryBanner(draft);
+}
+
+/** Main init — called from DOMContentLoaded */
+async function initPersistence() {
+  // Load sessions from IDB and merge with localStorage
+  try {
+    const idbSessions = await loadAllSessionsFromIndexedDB();
+    if (idbSessions.length > 0) {
+      // Merge: prefer IDB version on conflict (it has updatedAt)
+      const lsSessions  = Sessions.all();
+      const lsMap       = Object.fromEntries(lsSessions.map(s => [s.id, s]));
+      const merged      = { ...lsMap };
+      idbSessions.forEach(s => {
+        if (!merged[s.id] || (s.updatedAt > (merged[s.id].updatedAt || ''))) {
+          merged[s.id] = s;
+        }
+      });
+      const mergedArr = Object.values(merged).sort((a,b) => b.startISO.localeCompare(a.startISO));
+      Sessions.replaceAll(mergedArr);
+      Render.all();
+    }
+    // Write current state back to IDB
+    Sessions.all().forEach(saveSessionToIndexedDB);
+  } catch (e) { console.warn('IDB init error', e); }
+
+  // Handle recovery
+  await handleRecoveryIfNeeded();
+
+  // Start autosave + idle tracking if session is already running
+  if (Sessions.getActive()) {
+    startAutosaveLoop();
+    startIdleTracking();
+  }
+
+  setSyncStatus('saved');
+}
+
+// ── Patch Sessions.start / Sessions.stop to hook persistence ──────────
+
+const _origStart = Sessions.start.bind(Sessions);
+Sessions.start = function(project, notes) {
+  const session = _origStart(project, notes);
+  saveActiveDraft(session);
+  saveSessionToIndexedDB(session);
+  startAutosaveLoop();
+  startIdleTracking();
+  setSyncStatus('saved');
+  return session;
+};
+
+const _origStop = Sessions.stop.bind(Sessions);
+Sessions.stop = function() {
+  const session = _origStop();
+  if (session) {
+    stopAutosaveLoop();
+    stopIdleTracking();
+    clearActiveDraft();
+    saveSessionToIndexedDB(session);
+    setSyncStatus('saved');
+  }
+  return session;
+};
+
+const _origRemove = Sessions.remove.bind(Sessions);
+Sessions.remove = function(id) {
+  _origRemove(id);
+  IDB.idbDelete(`session_${id}`).catch(() => {});
+};
+
+// ── Suspicious session render patch ───────────────────────────────────
+// After Render.sessions runs, flag any suspiciously long rows
+const _origRenderSessions = Render.sessions.bind(Render);
+Render.sessions = function() {
+  _origRenderSessions();
+  const maxMs = CONFIG.maxSessionHours * 3600000;
+  Sessions.all().forEach(s => {
+    if (!s.endISO) return;
+    const dur = new Date(s.endISO) - new Date(s.startISO);
+    if (dur > maxMs) {
+      // Find the duration cell for this session and add warning
+      document.querySelectorAll('#sessions-tbody tr').forEach(tr => {
+        const editBtn = tr.querySelector(`[data-id="${s.id}"]`);
+        if (editBtn) {
+          const durCell = tr.querySelector('.td-duration');
+          if (durCell && !durCell.querySelector('.suspicious-warn')) {
+            durCell.insertAdjacentHTML('beforeend',
+              `<span class="suspicious-warn" title="Session > ${CONFIG.maxSessionHours}h — please verify">⚠ long</span>`);
+          }
+        }
+      });
+    }
+  });
+};
+
+// ===== DEV HELPERS =====
+
+/** Seed test data: active draft from 30m ago + sample sessions */
+window.seedTestData = function(weeks = 2) {
+  const uid = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const now = Date.now();
+
+  // Active draft started 30 minutes ago (for recovery testing)
+  const draftSession = {
+    id: uid(),
+    startISO: new Date(now - 30 * 60000).toISOString(),
+    endISO: null,
+    project: 'TEST — Recovery Draft',
+    notes: 'Auto-generated for recovery testing',
+    updatedAt: new Date(now - 5 * 60000).toISOString() // last saved 5m ago
+  };
+  IDB.idbPut(DRAFT_IDB_KEY, draftSession).then(() =>
+    console.log('✅ Draft saved to IndexedDB. Reload to see recovery banner.')
+  );
+
+  // Sample sessions over past 2 days
+  const sessions = [];
+  for (let i = 0; i < 8; i++) {
+    const start = new Date(now - (i * 3 + 1) * 3600000);
+    const dur   = 30 + Math.floor(Math.random() * 90);
+    const end   = new Date(start.getTime() + dur * 60000);
+    sessions.push({ id: uid(), startISO: start.toISOString(), endISO: end.toISOString(), durationMins: dur, project: ['Deep Work','Admin','Research'][i % 3], notes: `Sample session ${i+1}` });
+  }
+  Sessions.replaceAll([...sessions, ...Sessions.all()]);
+  sessions.forEach(saveSessionToIndexedDB);
+  Render.all();
+  console.log(`✅ Seeded ${sessions.length} sample sessions. Draft ready — reload to test recovery.`);
+};
+
+/** Clear active draft from IndexedDB */
+window.clearDraft = async function() {
+  await clearActiveDraft();
+  console.log('✅ Draft cleared.');
+};
+
+/** Force an immediate autosave of the active session */
+window.forceAutosave = async function() {
+  const active = Sessions.getActive();
+  if (!active) { console.log('No active session.'); return; }
+  await saveActiveDraft(active);
+  console.log('✅ Draft saved:', active);
+};
+
+/** Print all IndexedDB contents to console */
+window.printIndexedDBContents = async function() {
+  const keys = await IDB.idbGetAllKeys();
+  console.group('IndexedDB contents');
+  for (const key of keys) {
+    const val = await IDB.idbGet(key);
+    console.log(key, val);
+  }
+  console.groupEnd();
+  console.log(`Total: ${keys.length} entries`);
+};
+
+/*
+═══════════════════════════════════════════════════════
+  10-LINE USAGE TEST — run in browser console
+═══════════════════════════════════════════════════════
+  1. seedTestData()                    // seed draft + sessions
+  2. printIndexedDBContents()          // verify IDB has data
+  3. Reload page                       // recovery banner should appear
+  4. Click "Resume" on the banner      // session resumes, timer ticks
+  5. forceAutosave()                   // manually flush draft to IDB
+  6. // Lower idle timeout for testing:
+     CONFIG.idleMs = 10000            // set idle to 10s
+     resetIdleTimer()                 // restart idle timer
+  7. // Wait 10s — auto-stop fires, undo banner appears for 20s
+  8. // Click "Undo" on undo banner    // session resumes
+  9. clearDraft()                      // clean up
+  10. printIndexedDBContents()         // verify draft is gone
+═══════════════════════════════════════════════════════
+*/
+
 document.addEventListener('DOMContentLoaded', () => {
   PWA.register();
   UI.init();
   Goals.init();
   recomputeAnalytics();
   initCollapsibles();
+  initPersistence(); // ← PERSISTENCE MODULE
+  Firebase.init();   // ← FIREBASE (no-op if not configured)
 });
 
 /* ═══════════════════════════════════════════════════════
