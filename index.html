@@ -1251,6 +1251,121 @@ td { color: #ffffff; }
 
 .tt-idle-countdown-label { color: #888888; }
 
+/* ═══════════════════════════════════════════════════
+   SHORTCUTS MODULE — Quick Overlay Styles
+   Scoped to #tt-quick-overlay / .tt-quick-* only.
+═══════════════════════════════════════════════════ */
+#tt-quick-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(5px);
+  padding: 1rem;
+  animation: ttOverlayIn 0.15s ease;
+}
+#tt-quick-overlay.visible { display: flex; }
+#tt-quick-overlay.tt-reduced,
+#tt-quick-overlay.tt-reduced .tt-quick-box { animation: none !important; }
+@keyframes ttOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.tt-quick-box {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-top: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 1.5rem;
+  min-width: 260px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.75);
+  font-family: var(--mono);
+  animation: ttBoxIn 0.15s ease;
+}
+@keyframes ttBoxIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.tt-quick-title {
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tt-quick-close-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 2px 6px;
+  font-family: var(--mono);
+  transition: color 0.12s, border-color 0.12s;
+}
+.tt-quick-close-btn:hover { color: var(--text); border-color: var(--border2); }
+.tt-quick-close-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tt-quick-status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.tt-quick-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+  transition: background 0.15s;
+}
+.tt-quick-dot.running {
+  background: var(--accent);
+  box-shadow: 0 0 7px var(--accent);
+  animation: pulse 2s infinite;
+}
+
+.tt-quick-actions { display: flex; gap: 0.5rem; }
+.tt-quick-actions .btn { flex: 1; justify-content: center; }
+
+.tt-quick-notice {
+  font-size: 0.7rem;
+  color: var(--warn);
+  margin-top: 0.55rem;
+  min-height: 1.1em;
+  text-align: center;
+}
+
+.tt-quick-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 0.55rem;
+}
+
+.tt-quick-countdown { font-size: 0.6rem; color: var(--text-muted); }
+.tt-quick-hint      { font-size: 0.6rem; color: var(--text-muted); }
+
 </style>
 </head>
 <body>
@@ -4190,6 +4305,379 @@ window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, 
   window.TimeTrackerSoundModule.confetti(1500, 80);
   window.TimeTrackerSoundModule.setVolume(0.8);
 */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ===== SHORTCUTS MODULE =====
+   Phase 1: Global keyboard shortcuts + Quick Overlay Panel
+
+   ASSUMPTIONS / INTEGRATION NOTES
+   ────────────────────────────────
+   • No global startSession() / stopSession() detected in this codebase.
+     Primary action method: document.getElementById('btn-start/btn-stop').click()
+     (confirmed IDs from UI module: $start = #btn-start, $stop = #btn-stop).
+   • Running state read via window.__tt.Sessions.getActive() (exposed at bottom
+     of existing JS as window.__tt = { Sessions, … }).
+   • Toast.show() is available in scope (defined earlier in the same <script>).
+   • Existing S / E keyboard shortcuts live in UI.init() and are NOT modified.
+   • Ctrl+Shift+T (Cmd+Shift+T on macOS) is the new overlay toggle shortcut.
+   • Points requiring manual review:
+       - If Firebase sync is active, overlay Start/Stop triggers the same
+         localStorage → IDB → Firebase pipeline unchanged.
+       - Overlay auto-dismiss (4 s) resets on each open; DEV flag extends to 20 s.
+═══════════════════════════════════════════════════════════════════════ */
+
+(function () {
+  'use strict';
+
+  // ── Dev flag ──────────────────────────────────────────────────────────
+  // Set to true to extend overlay timeout and emit console diagnostics.
+  const DEV = false;
+
+  const OVERLAY_TIMEOUT_MS = DEV ? 20000 : 4000;
+  const REDUCED_MOTION     = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── 3-tier button lookup ───────────────────────────────────────────────
+  // Tier 1: known IDs (#btn-start / #btn-stop, confirmed in UI module)
+  // Tier 2: alternate IDs (#startBtn / #stopBtn)
+  // Tier 3: first <button> whose visible text matches start / stop
+  function findStartBtn() {
+    return (
+      document.getElementById('btn-start') ||
+      document.getElementById('startBtn')  ||
+      [...document.querySelectorAll('button')].find(b => /\bstart\b/i.test(b.textContent))
+    );
+  }
+
+  function findStopBtn() {
+    return (
+      document.getElementById('btn-stop') ||
+      document.getElementById('stopBtn')  ||
+      [...document.querySelectorAll('button')].find(b => /\bstop\b/i.test(b.textContent))
+    );
+  }
+
+  // ── isRunning ──────────────────────────────────────────────────────────
+  // Prefers Sessions.getActive() (exposed on window.__tt) for accuracy.
+  // Falls back to checking whether #btn-stop is enabled.
+  function isRunning() {
+    try {
+      if (window.__tt && typeof window.__tt.Sessions?.getActive === 'function') {
+        return window.__tt.Sessions.getActive() !== null;
+      }
+    } catch (_) {}
+    const stopBtn = findStopBtn();
+    return stopBtn ? !stopBtn.disabled : false;
+  }
+
+  // ── Debounce guard (500 ms) ────────────────────────────────────────────
+  // Prevents double-fire from rapid keyboard repeat or overlay + hotkey combo.
+  let _guard = false;
+  function withGuard(fn) {
+    if (_guard) return;
+    _guard = true;
+    fn();
+    setTimeout(() => { _guard = false; }, 500);
+  }
+
+  // ── triggerStart ───────────────────────────────────────────────────────
+  async function triggerStart() {
+    if (isRunning()) {
+      _showNotice('Already running — stop the current session first.');
+      if (typeof Toast !== 'undefined') {
+        Toast.show('A session is already running.', 'warn', 2000);
+      }
+      return;
+    }
+    withGuard(() => {
+      const btn = findStartBtn();
+      if (btn && !btn.disabled) btn.click();
+      else if (DEV) console.warn('[SHORTCUTS] Start button not found or disabled.');
+    });
+  }
+
+  // ── triggerStop ────────────────────────────────────────────────────────
+  async function triggerStop() {
+    if (!isRunning()) {
+      _showNotice('No session is running.');
+      if (typeof Toast !== 'undefined') {
+        Toast.show('No session is running.', 'warn', 2000);
+      }
+      return;
+    }
+    withGuard(() => {
+      const btn = findStopBtn();
+      if (btn && !btn.disabled) btn.click();
+      else if (DEV) console.warn('[SHORTCUTS] Stop button not found or disabled.');
+    });
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────
+  window.TimeTrackerControls = {
+    triggerStart,
+    triggerStop,
+    isRunning,
+  };
+
+  // ══════════════════════════════════════════════════════════════════════
+  // OVERLAY
+  // ══════════════════════════════════════════════════════════════════════
+  let _overlayEl       = null;
+  let _overlayVisible  = false;
+  let _dismissTimer    = null;
+  let _countdownTimer  = null;
+  let _prevFocus       = null; // element to return focus to on close
+
+  // ── Build overlay DOM (lazy — created on first open) ──────────────────
+  function _buildOverlay() {
+    if (_overlayEl) return;
+
+    const el = document.createElement('div');
+    el.id = 'tt-quick-overlay';
+    el.setAttribute('role',            'dialog');
+    el.setAttribute('aria-modal',      'true');
+    el.setAttribute('aria-labelledby', 'tt-ql-title');
+    if (REDUCED_MOTION) el.classList.add('tt-reduced');
+
+    el.innerHTML = `
+      <div class="tt-quick-box">
+        <div class="tt-quick-title">
+          <span id="tt-ql-title">Quick Controls</span>
+          <button class="tt-quick-close-btn" id="tt-ql-close" aria-label="Close overlay (Escape)">✕</button>
+        </div>
+        <div class="tt-quick-status" role="status" aria-live="polite">
+          <span class="tt-quick-dot" id="tt-ql-dot"></span>
+          <span id="tt-ql-status">Loading…</span>
+        </div>
+        <div class="tt-quick-actions">
+          <button class="btn btn-primary" id="tt-ql-start" aria-label="Start session">&#9654; Start</button>
+          <button class="btn btn-danger"  id="tt-ql-stop"  aria-label="Stop session">&#9632; Stop</button>
+        </div>
+        <div class="tt-quick-notice" id="tt-ql-notice" aria-live="polite" aria-atomic="true"></div>
+        <div class="tt-quick-footer">
+          <span class="tt-quick-countdown" id="tt-ql-countdown"></span>
+          <span class="tt-quick-hint">Esc to close</span>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(el);
+    _overlayEl = el;
+
+    // Close on backdrop click
+    el.addEventListener('click', e => { if (e.target === el) _hideOverlay(); });
+
+    // ✕ button
+    el.querySelector('#tt-ql-close').addEventListener('click', _hideOverlay);
+
+    // Start / Stop wired to same underlying buttons via triggerStart/triggerStop
+    el.querySelector('#tt-ql-start').addEventListener('click', async () => {
+      await triggerStart();
+      _refreshState();
+    });
+
+    el.querySelector('#tt-ql-stop').addEventListener('click', async () => {
+      await triggerStop();
+      _refreshState();
+    });
+
+    // Keyboard: Escape closes; Tab is trapped
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); _hideOverlay(); return; }
+      if (e.key === 'Tab')    { _trapFocus(e); }
+    });
+  }
+
+  // ── Focus trap ────────────────────────────────────────────────────────
+  function _trapFocus(e) {
+    const focusable = [..._overlayEl.querySelectorAll(
+      'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )];
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+    if (e.shiftKey) {
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+    } else {
+      if (document.activeElement === last)  { e.preventDefault(); first.focus(); }
+    }
+  }
+
+  // ── Refresh Start/Stop state inside overlay ───────────────────────────
+  function _refreshState() {
+    if (!_overlayEl) return;
+    const running = isRunning();
+    _overlayEl.querySelector('#tt-ql-dot').classList.toggle('running', running);
+    _overlayEl.querySelector('#tt-ql-status').textContent = running ? 'Running' : 'Not running';
+    _overlayEl.querySelector('#tt-ql-start').disabled = running;
+    _overlayEl.querySelector('#tt-ql-stop').disabled  = !running;
+  }
+
+  // ── Show brief notice text inside overlay ─────────────────────────────
+  function _showNotice(msg) {
+    if (!_overlayEl) return;
+    const el = _overlayEl.querySelector('#tt-ql-notice');
+    if (!el) return;
+    el.textContent = msg;
+    setTimeout(() => { if (el) el.textContent = ''; }, 2500);
+  }
+
+  // ── Countdown display ─────────────────────────────────────────────────
+  function _startCountdown() {
+    clearInterval(_countdownTimer);
+    let remaining = Math.round(OVERLAY_TIMEOUT_MS / 1000);
+    const el = _overlayEl?.querySelector('#tt-ql-countdown');
+    if (el) el.textContent = `Closes in ${remaining}s`;
+    _countdownTimer = setInterval(() => {
+      remaining--;
+      if (el) el.textContent = remaining > 0 ? `Closes in ${remaining}s` : '';
+      if (remaining <= 0) clearInterval(_countdownTimer);
+    }, 1000);
+  }
+
+  // ── Show overlay ──────────────────────────────────────────────────────
+  function _showOverlay() {
+    _buildOverlay();
+    if (_overlayVisible) { _refreshState(); return; } // already open — just refresh
+
+    _prevFocus      = document.activeElement;
+    _overlayVisible = true;
+    _overlayEl.classList.add('visible');
+    _refreshState();
+
+    // Focus first enabled button
+    const firstBtn = _overlayEl.querySelector('button:not([disabled])');
+    if (firstBtn) requestAnimationFrame(() => firstBtn.focus());
+
+    // Auto-dismiss
+    clearTimeout(_dismissTimer);
+    _startCountdown();
+    _dismissTimer = setTimeout(_hideOverlay, OVERLAY_TIMEOUT_MS);
+
+    if (DEV) console.log('[SHORTCUTS] Overlay shown. Timeout:', OVERLAY_TIMEOUT_MS, 'ms');
+  }
+
+  // ── Hide overlay ──────────────────────────────────────────────────────
+  function _hideOverlay() {
+    if (!_overlayVisible) return;
+    _overlayVisible = false;
+    clearTimeout(_dismissTimer);
+    clearInterval(_countdownTimer);
+    _overlayEl?.classList.remove('visible');
+
+    // Restore focus
+    if (_prevFocus && typeof _prevFocus.focus === 'function') {
+      try { _prevFocus.focus(); } catch (_) {}
+    }
+    _prevFocus = null;
+  }
+
+  // ── Toggle ────────────────────────────────────────────────────────────
+  function _toggleOverlay() {
+    if (_overlayVisible) _hideOverlay();
+    else _showOverlay();
+  }
+
+  // ── Keep overlay in sync while it's open (polls every 2 s) ───────────
+  setInterval(() => { if (_overlayVisible) _refreshState(); }, 2000);
+
+  // ══════════════════════════════════════════════════════════════════════
+  // GLOBAL KEYBOARD LISTENER
+  // Adds ONLY the Ctrl+Shift+T / Cmd+Shift+T shortcut.
+  // S / E are intentionally left to the existing handler in UI.init().
+  // ══════════════════════════════════════════════════════════════════════
+  document.addEventListener('keydown', e => {
+    // Ctrl+Shift+T (Win/Linux) or Cmd+Shift+T (macOS) → toggle overlay
+    // Allowed even when an input is focused (it's a meta panel, not text input).
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+      e.preventDefault();
+      _toggleOverlay();
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DEV / TEST HELPERS
+  // ══════════════════════════════════════════════════════════════════════
+  /** Show the quick overlay programmatically */
+  window.ttTestOverlay = () => _showOverlay();
+
+  /** Simulate triggerStart — logs result to console */
+  window.ttSimStart = async () => {
+    console.log('[ttSim] calling triggerStart()…');
+    await triggerStart();
+    console.log('[ttSim] done. isRunning():', isRunning());
+  };
+
+  /** Simulate triggerStop — logs result to console */
+  window.ttSimStop = async () => {
+    console.log('[ttSim] calling triggerStop()…');
+    await triggerStop();
+    console.log('[ttSim] done. isRunning():', isRunning());
+  };
+
+  if (DEV) {
+    console.log('[SHORTCUTS MODULE] loaded. DEV=true');
+    console.log('  window.TimeTrackerControls →', window.TimeTrackerControls);
+    console.log('  Helpers: ttTestOverlay(), ttSimStart(), ttSimStop()');
+  }
+
+})(); // ===== END SHORTCUTS MODULE =====
+
+/*
+  ─────────────────────────────────────────────────────────────────────
+  6-STEP QA PLAN
+  ─────────────────────────────────────────────────────────────────────
+  1. EXISTING SHORTCUTS UNCHANGED
+     Click outside all inputs so page has focus.
+     Press S → timer starts (▶ button fires, dot turns green).
+     Press E → timer stops (■ button fires, duration appears in table).
+     ✓ Existing behaviour preserved.
+
+  2. OVERLAY OPEN / CLOSE VIA HOTKEY
+     Press Ctrl+Shift+T (Cmd+Shift+T on Mac) → compact overlay appears
+     centred with "Not running" status, Start enabled, Stop disabled.
+     Press Ctrl+Shift+T again → overlay closes.
+     Press Escape while overlay is open → overlay closes.
+     ✓ Toggle works; Escape dismiss works.
+
+  3. OVERLAY START / STOP MATCH MAIN UI
+     Open overlay (Ctrl+Shift+T). Click ▶ Start inside overlay.
+     Observe: main Start button fires, live timer begins, dot turns green.
+     Re-open overlay → Stop enabled. Click ■ Stop.
+     Observe: main Stop fires, session appears in table.
+     ✓ Overlay buttons produce identical side-effects to main UI.
+
+  4. AUTO-DISMISS AND KEYBOARD NAVIGATION
+     Open overlay. Do nothing for 4 seconds → overlay auto-closes.
+     Open overlay again. Tab through all three buttons (▶ Start, ■ Stop, ✕).
+     Confirm Tab wraps from ✕ back to first enabled button.
+     ✓ Auto-dismiss and focus-trap work correctly.
+
+  5. DOUBLE-TRIGGER GUARD (idempotency)
+     In console: window.TimeTrackerControls.triggerStart()
+     Then immediately: window.TimeTrackerControls.triggerStart()
+     Second call → brief warning notice shown; session count unchanged.
+     Stop session, then: window.TimeTrackerControls.triggerStop()
+     → Shows "No session is running." notice; no crash.
+     ✓ Guard prevents duplicate sessions.
+
+  6. INPUT ISOLATION
+     Click inside the Notes input field.
+     Type "start" and "stop" → characters appear in field, no session fires.
+     While cursor is in the input, press Ctrl+Shift+T → overlay still opens
+     (meta shortcut is intentionally allowed from inputs).
+     ✓ S / E correctly suppressed; Ctrl+Shift+T correctly passes through.
+  ─────────────────────────────────────────────────────────────────────
+
+  QUICK VERIFICATION SNIPPET (paste in browser console):
+  ─────────────────────────────────────────────────────────────────────
+*/
+// Quick verification
+// window.TimeTrackerControls.triggerStart();          // starts session
+// window.TimeTrackerControls.triggerStop();           // stops session
+// window.ttTestOverlay();                              // opens overlay
+// console.log('Running:', window.TimeTrackerControls.isRunning());
+// window.TimeTrackerControls.triggerStart();          // start
+// window.TimeTrackerControls.triggerStart();          // idempotency — notice shown
 
 </script>
 </body>
