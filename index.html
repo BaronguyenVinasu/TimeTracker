@@ -4319,7 +4319,7 @@ window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, 
      of existing JS as window.__tt = { Sessions, … }).
    • Toast.show() is available in scope (defined earlier in the same <script>).
    • Existing S / E keyboard shortcuts live in UI.init() and are NOT modified.
-   • Ctrl+Shift+T (Cmd+Shift+T on macOS) is the new overlay toggle shortcut.
+   • Ctrl+Shift+K (Cmd+Shift+K on macOS) is the new overlay toggle shortcut.
    • Points requiring manual review:
        - If Firebase sync is active, overlay Start/Stop triggers the same
          localStorage → IDB → Firebase pipeline unchanged.
@@ -4586,9 +4586,9 @@ window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, 
   // S / E are intentionally left to the existing handler in UI.init().
   // ══════════════════════════════════════════════════════════════════════
   document.addEventListener('keydown', e => {
-    // Ctrl+Shift+T (Win/Linux) or Cmd+Shift+T (macOS) → toggle overlay
+    // Ctrl+Shift+K (Win/Linux) or Cmd+Shift+K (macOS) → toggle overlay
     // Allowed even when an input is focused (it's a meta panel, not text input).
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 't' || e.key === 'T')) {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       _toggleOverlay();
     }
@@ -4633,7 +4633,7 @@ window.__tt = { Sessions, Render, CSV, Timer, Toast, Goals, Analytics, Streaks, 
      ✓ Existing behaviour preserved.
 
   2. OVERLAY OPEN / CLOSE VIA HOTKEY
-     Press Ctrl+Shift+T (Cmd+Shift+T on Mac) → compact overlay appears
+     Press Ctrl+Shift+K (Cmd+Shift+K on Mac) → compact overlay appears
      centred with "Not running" status, Start enabled, Stop disabled.
      Press Ctrl+Shift+T again → overlay closes.
      Press Escape while overlay is open → overlay closes.
